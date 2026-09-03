@@ -113,6 +113,7 @@ AGENT_KEYS = {
     "Ocean Analytics": "analytics",
     "PFZ": "pfz",
     "Geospatial": "geospatial",
+    "Trends": "trends",
     "Risk": "risk",
     "Visualization": "visualization",
     "Reporting": "reporting",
@@ -160,6 +161,7 @@ class Decision:
 
 @dataclass
 class Task:
+    needs_trends: bool = False
     needs_ocean: bool = True
     needs_weather: bool = True
     needs_geofence: bool = False
@@ -172,6 +174,17 @@ class Task:
 
 BOUNDARY_WORDS = ("সীমা", "সীমানা", "सीमा", "સીમા", "ସୀମା",
                   "எல்லை", "సరిహద్దు", "അതിർത്തി", "boundary", "border")
+# "why is the catch down", "fish has decreased", "কেন কমে গেল"
+DECLINE_WORDS = ("কম", "কমে", "কমেছে", "কমল", "কেন",
+                 "कम", "क्यों", "घट",
+                 "कमी", "का",
+                 "ઓછું", "કેમ", "ઘટ",
+                 "କମ", "କାହିଁକି",
+                 "குறை", "ஏன்",
+                 "తగ్గ", "ఎందుకు",
+                 "കുറ", "എന്തുകൊണ്ട്",
+                 "why", "decline", "declin", "less", "fewer", "drop")
+
 FISHING_WORDS = ("মাছ", "মৎস",                    # bn
                  "मछली", "मत्स्य",                  # hi
                  "मासे",                            # mr
@@ -180,7 +193,10 @@ FISHING_WORDS = ("মাছ", "মৎস",                    # bn
                  "மீன்",                            # ta
                  "చేప", "మత్స్య",                   # te
                  "മത്സ്യ", "മീൻ", "മീന",            # ml
-                 "fish", "pfz")
+                 "fish", "pfz",
+                 # a catch is what a fisherman calls it in English, and
+                 # "why is the catch down" never says the word fish
+                 "catch", "haul", "মাছ ধরা", "মৎস্য উৎপাদন")
 
 
 def plan(resolved: Resolved) -> Task:
@@ -194,9 +210,22 @@ def plan(resolved: Resolved) -> Task:
         if any(w in resolved.question or w in q for w in BOUNDARY_WORDS):
             intent = "boundary"
         elif any(w in resolved.question or w in q for w in FISHING_WORDS):
-            intent = "fishing"
+            # "where are the fish" and "why are there fewer fish" both mention
+            # fish, and they are not the same question. The second is about a
+            # season; the first is about this morning.
+            intent = ("decline"
+                      if any(w in resolved.question or w in q
+                             for w in DECLINE_WORDS)
+                      else "fishing")
         else:
             intent = "safety"
+
+    if intent == "decline":
+        # a question about a season, not about today's weather
+        return Task(needs_ocean=False, needs_weather=False, needs_geofence=False,
+                    needs_pfz=False, needs_trends=True,
+                    start=now, end=now + timedelta(hours=2),
+                    when_key="now", intent=intent)
 
     if intent == "boundary":
         return Task(needs_ocean=False, needs_weather=False, needs_geofence=True,
@@ -217,6 +246,7 @@ def plan(resolved: Resolved) -> Task:
     # happened.
     return Task(needs_ocean=True, needs_weather=True, needs_geofence=False,
                 needs_pfz=(intent == "fishing"),
+                needs_trends=(intent == "decline"),
                 start=window[0], end=window[1],
                 when_key=resolved.when_key, intent=intent)
 
@@ -548,6 +578,48 @@ def protected_agent(lat, lon, language: str) -> Finding | None:
     )
 
 
+async def trends_agent(client, lat, lon) -> list[Finding]:
+    """What the water did over a season, compared with the same season a year ago.
+
+    This is the one agent that must be careful about what it does not know. A
+    catch is fish minus effort minus gear minus market, and a satellite sees
+    none of that. So it reports the water, and says so in the same answer.
+    """
+    from . import trends as trends_mod
+
+    cmp = await trends_mod.compare(client, lat, lon)
+
+    if cmp.change is None:
+        return [Finding(
+            agent="Trends",
+            phrase=Phrase("trend_nodata", {}),
+            headline="not enough imagery to compare years",
+            citation=cmp.citation,
+        )]
+
+    pct = abs(round(cmp.change * 100))
+    kind = {"down": "trend_down", "up": "trend_up"}.get(cmp.direction,
+                                                        "trend_steady")
+    out = [Finding(
+        agent="Trends",
+        phrase=Phrase(kind, {"pct": pct} if kind != "trend_steady" else {}),
+        headline=(f"chlorophyll {cmp.now.chlorophyll} vs "
+                  f"{cmp.before.chlorophyll} mg/m3 a year ago ({cmp.change:+.0%})"),
+        citation=cmp.citation,
+    )]
+
+    # Always, not only when the news is bad. Someone told the water improved
+    # would otherwise take the silence to mean the tool had ruled everything
+    # else out.
+    out.append(Finding(
+        agent="Trends",
+        phrase=Phrase("trend_limits", {}),
+        headline="effort, gear and market are not visible to a satellite",
+        citation="scope of this comparison",
+    ))
+    return out
+
+
 def geofence_agent(lat, lon, always=False) -> Finding | None:
     g = geofence.check(lat, lon)
     if g.level == "clear" and not always:
@@ -631,6 +703,18 @@ def risk_agent(task: Task, findings: list[Finding], language: str,
     blockers = [f for f in findings if f.blocking]
     thunder = next((f for f in findings if f.phrase.kind == "thunder"), None)
 
+    # A question about a season is not a question about this morning. Someone
+    # asking why the catch is down does not want to be told the sea is calm.
+    if task.intent == "decline":
+        trend = next((f for f in findings if f.agent == "Trends"), None)
+        if trend:
+            answer = lang.render(trend.phrase, language) + stop
+            limits = next((f for f in findings
+                           if f.phrase.kind == "trend_limits"), None)
+            if limits:
+                answer += " " + lang.render(limits.phrase, language) + stop
+            return Decision("unknown", task.when_key, answer, language, findings)
+
     # A fishing question deserves a fishing answer. But safety still outranks
     # it: a good zone in dangerous water is not a recommendation, and blockers
     # are handled below before we ever get here.
@@ -696,6 +780,7 @@ def _planned(task) -> list[tuple[str, bool]]:
     return [(n, on) for n, on in (("ocean", task.needs_ocean),
                                   ("analytics", task.needs_ocean),
                                   ("pfz", task.needs_pfz),
+                            ("trends", task.needs_trends),
                                   ("weather", task.needs_weather),
                                   ("geofence", task.needs_geofence)) if on]
 
@@ -777,6 +862,10 @@ async def answer(question: str, session: Session,
                                               task, notes))
             names.append(("Ocean Analytics", "sea temperature and currents",
                           "Open-Meteo marine"))
+        if task.needs_trends:
+            jobs.append(trends_agent(client, session.lat, session.lon))
+            names.append(("Trends", "this season against last year",
+                          "satellite ocean colour archive"))
         if task.needs_pfz:
             jobs.append(pfz_agent(client, session.lat, session.lon, boat))
             names.append(("PFZ", "where fronts and plankton coincide",

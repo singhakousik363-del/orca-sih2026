@@ -551,6 +551,44 @@ def check_ports():
     report(f"9. harbour names  ({len(ports.PORTS)} ports)", problems)
 
 
+def check_decline():
+    """"Where are the fish" and "why are there fewer fish" are different.
+
+    The first is about this morning and runs the fishing-zone estimate. The
+    second is about a season and runs the year-on-year comparison. Both mention
+    fish, and a planner that cannot tell them apart answers the wrong one — as
+    it did for "why is the catch down?", which says catch and never says fish.
+    """
+    sys.path.insert(0, ".")
+    from app import agents
+    from app.session import Resolved
+
+    problems = []
+    cases = [
+        ("কাছে মাছ কোথায়?", "fishing"),
+        ("where are the fish?", "fishing"),
+        ("মাছ কম পড়ছে কেন?", "decline"),
+        ("why is the catch down?", "decline"),
+        ("the catch has dropped", "decline"),
+        ("மீன் ஏன் குறைந்தது?", "decline"),
+        ("আজ সমুদ্র কেমন?", "safety"),
+        ("সীমানা কত দূরে?", "boundary"),
+    ]
+    for question, want in cases:
+        task = agents.plan(Resolved(question=question, when_key="today",
+                                    intent="", boat_length_m=9.0,
+                                    inherited=False))
+        if task.intent != want:
+            problems.append(f"{question!r} routed to {task.intent}, expected {want}")
+        if want == "decline" and not task.needs_trends:
+            problems.append(f"{question!r} is a decline question but runs no comparison")
+        if want == "fishing" and not task.needs_pfz:
+            problems.append(f"{question!r} is a fishing question but runs no zone estimate")
+
+    report(f"9b. fishing now against fishing over time  ({len(cases)} cases)",
+           problems)
+
+
 # --------------------------------------------------- 10. the map's contract
 def check_map():
     """Every map field the page reads must be one the server sends.

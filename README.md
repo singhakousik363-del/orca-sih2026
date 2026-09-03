@@ -352,6 +352,18 @@ Two approximations to declare in the deck:
   survived a week in a store and reappeared looking current would be worse than
   none at all.
 
+- **"Where are the fish" and "why are there fewer fish" are different
+  questions.** Both mention fish; the first is about this morning and runs the
+  zone estimate, the second is about a season and compares this year's water
+  with the same weeks a year ago. A planner that cannot tell them apart answers
+  the wrong one — which it did for "why is the catch down?", a sentence that
+  says catch and never says fish.
+
+  The comparison answer never claims to explain a catch. A catch is fish minus
+  effort minus gear minus market, and a satellite sees none of that. It reports
+  what the water did, says in the same breath what it cannot see, and leaves
+  the conclusion to the person who knows the ground.
+
 - **Twelve seconds is the whole budget for an answer.** Not per call — for the
   round. Past that a partial answer that names what is missing beats a complete
   one nobody waited for, and the risk agent already refuses to say "safe" on
