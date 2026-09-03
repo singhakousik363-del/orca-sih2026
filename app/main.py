@@ -154,10 +154,28 @@ async def strings(lang_code: str = "bn"):
 
 @app.get("/nearest")
 async def nearest(lat: float, lon: float, lang_code: str = "bn"):
-    """Closest harbour to a GPS fix, so the app can open where the user is."""
+    """Name a GPS fix by the harbour nearest to it.
+
+    The name is for telling the user where we think they are. The position we
+    answer for is the one they gave us, not the harbour's — someone who put out
+    from a creek five kilometres along the coast is not at the harbour, and the
+    distance to a boundary or a sanctuary is different there.
+    """
+    from . import geofence
+
     p = ports.nearest(lat, lon)
-    return {"id": p.id, "name": p.name(lang_code), "lat": p.lat, "lon": p.lon,
-            "state": p.state}
+    away = geofence.distance_km((lat, lon), (p.lat, p.lon))
+    return {"id": p.id, "name": p.name(lang_code),
+            "lat": p.lat, "lon": p.lon,
+            "state": ports.state_name(p.state, lang_code),
+            "distance_km": lang.num(round(away, 1), lang_code),
+            # far enough that calling it that harbour would be wrong
+            "far": away > 25.0,
+            # Beyond this the fix is not on the coast at all — someone testing
+            # from inland, or a stale position. A marine forecast for a point
+            # 500 km inside the land is not a forecast, it is a number with no
+            # meaning, and answering with one would be worse than saying so.
+            "inland": away > 120.0}
 
 
 @app.post("/reset")

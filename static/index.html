@@ -64,6 +64,7 @@ body{
 header{background:var(--deep);color:#fff;padding:14px 18px 12px;flex:0 0 auto}
 header .t{font-size:17px;font-weight:700;letter-spacing:.02em;font-family:Inter,sans-serif}
 header .s{font-size:13px;color:#8FBACB;margin-top:2px}
+.loc2{display:flex;align-items:center;gap:9px;margin-top:9px;justify-content:flex-end}
 .loc{display:flex;gap:8px;margin-top:12px}
 .loc optgroup{background:#12313F;color:#8FBACB;font-style:normal}
 .loc option{background:#1A3E4E;color:#DCEBF2}
@@ -73,8 +74,18 @@ header .s{font-size:13px;color:#8FBACB;margin-top:2px}
 }
 .boatwrap{flex:1;position:relative;min-width:0;display:flex}
 .boatwrap input{width:100%;padding-right:26px}
-.unit{position:absolute;right:9px;top:50%;transform:translateY(-50%);
+.unit{cursor:pointer;background:none;border:0;font-family:inherit}
+.unit:hover{color:#fff}
+.unitx{position:absolute;right:9px;top:50%;transform:translateY(-50%);
   font-family:Inter,sans-serif;font-size:11.5px;color:#7FA9BC;pointer-events:none}
+.herebtn{
+  font-family:inherit;font-size:12px;border:1px solid rgba(255,255,255,.22);
+  background:rgba(255,255,255,.08);color:#DCE7EC;padding:7px 12px;
+  border-radius:14px;cursor:pointer;white-space:nowrap;
+}
+.herebtn.on{background:var(--teal);border-color:var(--teal);color:#fff}
+.herebtn:disabled{opacity:.55;cursor:default}
+.herenote{font-size:11px;color:rgba(220,231,236,.65);margin-top:5px;text-align:right}
 .boatlabel{font-family:Inter,sans-serif;font-size:10.5px;color:#7FA9BC;
   text-align:right;margin-top:6px;letter-spacing:.01em;line-height:1.3}
 main{flex:1;overflow-y:auto;padding:16px 18px 8px;overscroll-behavior:contain}
@@ -125,6 +136,15 @@ footer{padding:10px 20px 16px;border-top:1px solid var(--line);text-align:center
 }
 .watchbtn.on{background:var(--okbg);border-color:#BCDDD0;color:var(--ok)}
 .watchnote{font-size:12px;color:var(--mute);flex:1}
+.stalebar{
+  background:#F4EFE4;border:1px solid #E0D4BC;border-radius:11px;
+  padding:10px 13px;margin:0 0 12px;
+}
+.stalebar .k{
+  font-family:Inter,sans-serif;font-size:11px;font-weight:600;letter-spacing:.06em;
+  color:#8A6D2F;text-transform:uppercase;margin-bottom:3px;
+}
+.stalebar .w{font-size:12px;color:var(--mute)}
 .alertbox{
   background:#FBEEE8;border:1px solid #F0C9B6;border-radius:12px;
   padding:14px 16px;margin:0 0 14px;
@@ -171,8 +191,12 @@ footer{padding:10px 20px 16px;border-top:1px solid var(--line);text-align:center
       <select id="place"></select>
       <div class="boatwrap">
         <input id="boat" type="number" value="9" min="4" max="40" step="1">
-        <span class="unit">m</span>
+        <button class="unit" id="unit" type="button">m</button>
       </div>
+    </div>
+    <div class="loc2">
+      <button class="herebtn" id="here"></button>
+      <span class="herenote" id="herenote"></span>
     </div>
     <div class="boatlabel" id="boatlabel"></div>
   </header>
@@ -216,7 +240,94 @@ const SESSION = 'demo-' + Math.random().toString(36).slice(2, 9);
 const SPEECH_TAGS = {bn:'bn-IN', hi:'hi-IN', mr:'mr-IN', gu:'gu-IN', or:'or-IN',
                      ta:'ta-IN', te:'te-IN', ml:'ml-IN'};
 
-function coords(){ return $('#place').value.split(',').map(Number); }
+// A GPS fix, when the user has given one. The harbour picker is the fallback,
+// and stays: a phone can refuse, and a signal can be missing at four in the
+// morning on the water, which is exactly when this is used.
+let FIX = null;              // {lat, lon} as reported by the device
+
+// The field is metres, because the wave limits are. But a fisherman in Bengal
+// says "thirty foot boat", so the unit can be switched and the number converts.
+const FEET_PER_M = 3.28084;
+let UNIT = 'm';
+
+function boatMetres(){
+  const v = Number($('#boat').value || 0);
+  return UNIT === 'ft' ? +(v / FEET_PER_M).toFixed(1) : v;
+}
+
+function setBoatMetres(m){
+  $('#boat').value = UNIT === 'ft' ? Math.round(m * FEET_PER_M) : m;
+}
+
+function toggleUnit(){
+  const metres = boatMetres();
+  UNIT = UNIT === 'm' ? 'ft' : 'm';
+  $('#unit').textContent = UNIT === 'ft' ? 'ft' : 'm';
+  $('#boat').max = UNIT === 'ft' ? 130 : 40;
+  $('#boat').min = UNIT === 'ft' ? 13 : 4;
+  setBoatMetres(metres);
+}
+
+function coords(){
+  if(FIX) return [FIX.lat, FIX.lon];
+  return $('#place').value.split(',').map(Number);
+}
+
+async function nameFix(){
+  if(!FIX) return;
+  try{
+    const r = await fetch(`/nearest?lat=${FIX.lat}&lon=${FIX.lon}&lang_code=${LANGCODE}`);
+    if(!r.ok) return;
+    const n = await r.json();
+
+    // A fix hundreds of kilometres inland is not a boat. Rather than answer
+    // with a marine forecast for a point in the middle of the land, hand back
+    // to the harbour picker and say why.
+    if(n.inland){
+      FIX = null;
+      $('#here').classList.remove('on');
+      $('#place').disabled = false;
+      $('#herenote').textContent = T.here_inland;
+      return;
+    }
+
+    // The answer is for where they are, not for the harbour. The harbour is
+    // only how we tell them where we think that is.
+    $('#herenote').textContent =
+      T.here_at.replace('{dist}', n.distance_km).replace('{name}', n.name);
+  }catch(err){ /* the fix still works without a name for it */ }
+}
+
+function useHere(){
+  const btn = $('#here');
+  if(FIX){                       // tapping again goes back to the picker
+    FIX = null;
+    btn.classList.remove('on');
+    $('#herenote').textContent = '';
+    $('#place').disabled = false;
+    return;
+  }
+  if(!navigator.geolocation){
+    $('#herenote').textContent = T.here_fail;
+    return;
+  }
+  btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      FIX = {lat: +pos.coords.latitude.toFixed(4),
+             lon: +pos.coords.longitude.toFixed(4)};
+      btn.disabled = false;
+      btn.classList.add('on');
+      $('#place').disabled = true;
+      nameFix();
+    },
+    err => {
+      btn.disabled = false;
+      $('#herenote').textContent = T.here_fail;
+    },
+    {enableHighAccuracy: true, timeout: 10000, maximumAge: 60000}
+  );
+}
 
 /* ---------------------------------------------------------------- language */
 
@@ -253,6 +364,8 @@ async function loadLang(code){
   $('#boat').title = T.boat_label;
   $('#boat').setAttribute('aria-label', T.boat_label);
   $('#boatlabel').textContent = T.boat_label;
+  $('#here').textContent = T.here;
+  if(FIX) nameFix();          // re-label an existing fix in the new language
   $('#panelTitle').textContent = P.title;
   $('#panelSub').textContent = P.subtitle;
 
@@ -287,6 +400,39 @@ function resetView(){
 
 /* ------------------------------------------------------------------- asking */
 
+// The last answer that actually arrived, kept in memory for this session.
+//
+// The claim this app makes is that it is for someone at sea, and at sea there
+// is often no signal — which is exactly when the answer matters. Showing
+// nothing at that moment is the worst thing it could do. So the last answer is
+// kept and shown again, marked plainly as old and with the time it was for, so
+// nobody mistakes it for current.
+//
+// Not localStorage: this is a session's memory, and a stale forecast surviving
+// a week in a browser store would be worse than none.
+let LAST = null;
+
+function showStale(){
+  if(!LAST) return false;
+  const mins = Math.round((Date.now() - LAST.at) / 60000);
+  const when = mins < 1 ? '<1 min' : mins < 60 ? `${mins} min`
+             : `${Math.round(mins / 60)} h`;
+  main.insertAdjacentHTML('beforeend', `
+    <div class="anchor"></div>
+    <div class="stalebar">
+      <div class="k">${T.stale}</div>
+      <div class="w">${T.stale_when.replace('{when}', when)}</div>
+    </div>
+    <div class="verdict ${LAST.d.verdict}">
+      <span class="badge">${T.verdict[LAST.d.verdict]}</span>
+      <div class="answer">${LAST.d.answer}</div>
+    </div>`);
+  const anchors = main.querySelectorAll('.anchor');
+  const mark = anchors[anchors.length - 1];
+  main.scrollTop = mark ? mark.offsetTop - 8 : main.scrollHeight;
+  return true;
+}
+
 async function ask(q){
   if(!started){ main.innerHTML = ''; started = true; }
   main.insertAdjacentHTML('beforeend', `<div class="you">${esc(q)}</div>`);
@@ -301,20 +447,25 @@ async function ask(q){
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         question: q, session_id: SESSION, lat, lon,
-        boat_length_m: Number($('#boat').value || 9),
+        boat_length_m: boatMetres() || 9,
         prefer_lang: LANGCODE
       })
     });
     if(!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     document.getElementById('wk')?.remove();
+    LAST = {d, at: Date.now()};
     render(d);
-    $('#boat').value = d.boat_length_m;
+    setBoatMetres(d.boat_length_m);
   }catch(err){
     document.getElementById('wk')?.remove();
-    main.insertAdjacentHTML('beforeend',
-      `<div class="err">${T.failed}<br><small>${esc(err.message)}</small></div>`);
-    main.scrollTop = main.scrollHeight;
+    // An old answer, clearly labelled, beats a blank screen at four in the
+    // morning on the water.
+    if(!showStale()){
+      main.insertAdjacentHTML('beforeend',
+        `<div class="err">${T.failed}<br><small>${esc(err.message)}</small></div>`);
+      main.scrollTop = main.scrollHeight;
+    }
   }
 }
 
@@ -505,7 +656,7 @@ async function setWatch(on){
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         session_id: SESSION, lat, lon,
-        boat_length_m: Number($('#boat').value || 9),
+        boat_length_m: boatMetres() || 9,
         lang: LANGCODE, on
       })
     });
@@ -579,6 +730,8 @@ if(SR){
 
 document.addEventListener('click', e => {
   if(e.target.closest('[data-retry]')){ loadLang(LANGCODE || 'bn'); return; }
+  if(e.target.closest('#unit')){ toggleUnit(); return; }
+  if(e.target.closest('#here')){ useHere(); return; }
   if(e.target.closest('[data-watch]')){ setWatch(!WATCHING); return; }
   const q = e.target.closest('[data-q]');
   if(q) ask(q.dataset.q);

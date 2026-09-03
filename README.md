@@ -324,6 +324,34 @@ Two approximations to declare in the deck:
   safety parameter and nothing else, so changing it means asking what it
   changes, and the reply says so.
 
+- **A GPS fix is answered where it is, not snapped to a harbour.** The picker
+  covers 48 harbours, but a boat does not put out from a list. Someone leaving
+  a creek 50 km along the coast from Frasergunj is 80 km closer to the
+  international boundary than the harbour is — snapping to the nearest harbour
+  would be wrong in the direction that matters. The nearest harbour is used
+  only to tell the user where we think they are, and the answer says how far
+  off it is.
+
+  The picker stays as the fallback, and always will: a phone can refuse the
+  permission, and a signal can be missing at four in the morning on the water —
+  which is exactly when this is used.
+
+- **Boat length can be given in feet.** The wave limits are written in metres,
+  but a fisherman in Bengal says "thirty foot boat", and the register a licence
+  is written in is not the one people speak. The field switches unit and
+  converts; a spoken or typed "৩০ ফুট" is understood too. Everything on the
+  wire is metres.
+
+- **The last answer survives the signal.** This app claims to be for someone at
+  sea, and at sea there is often no signal — which is exactly when the answer
+  matters. Showing a blank screen at that moment would be the worst thing it
+  could do, so the last answer that arrived is shown again, marked plainly as
+  old and with how long ago it was.
+
+  It is kept in memory for the session, not in browser storage. A forecast that
+  survived a week in a store and reappeared looking current would be worse than
+  none at all.
+
 - **Twelve seconds is the whole budget for an answer.** Not per call — for the
   round. Past that a partial answer that names what is missing beats a complete
   one nobody waited for, and the risk agent already refuses to say "safe" on

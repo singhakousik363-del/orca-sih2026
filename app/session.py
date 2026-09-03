@@ -71,10 +71,20 @@ FOLLOWUP_OPENERS = (
     "and", "what about", "then",              # en
 )
 
-BOAT_PATTERN = re.compile(
+# Metres, and feet. A fisherman in Bengal says "thirty foot boat", not
+# "nine point one metres" — the register a licence is written in is not the one
+# people speak. Both go in, and feet convert.
+BOAT_M_PATTERN = re.compile(
     r"(\d{1,2}(?:\.\d)?)\s*(?:m\b|মিটার|मीटर|મીટર|ମିଟର|மீட்டர்|మీటర్|മീറ്റർ)",
     re.IGNORECASE,
 )
+BOAT_FT_PATTERN = re.compile(
+    r"(\d{1,3}(?:\.\d)?)\s*"
+    r"(?:ft\b|feet\b|foot\b|'|ফুট|फुट|फूट|ફૂટ|ଫୁଟ|அடி|అడుగు|അടി)",
+    re.IGNORECASE,
+)
+
+FEET_PER_METRE = 3.28084
 
 DAYAFTER_WORDS = ("পরশু", "परसों", "परवा", "પરમ દિવસે", "ପରଦିନ",
                   "நாளை மறுநாள்", "ఎల్లుండి", "മറ്റന്നാൾ", "day after")
@@ -87,12 +97,25 @@ def is_followup(question: str) -> bool:
     if len(q.split()) > 6:
         return False
     return any(q.startswith(w.lower()) for w in FOLLOWUP_OPENERS) or bool(
-        BOAT_PATTERN.search(question)
+        BOAT_M_PATTERN.search(question)
+        or BOAT_FT_PATTERN.search(question)
     )
 
 
 def extract_boat(question: str) -> float | None:
-    m = BOAT_PATTERN.search(question)
+    """A boat length from a question, in metres, however it was said.
+
+    Feet are checked first: "30 ft" contains no metre word, but a careless
+    metre pattern could still match a stray digit nearby. Whichever unit was
+    used, what comes back is metres, because that is what the wave limits are
+    written in.
+    """
+    m = BOAT_FT_PATTERN.search(question)
+    if m:
+        metres = round(float(m.group(1)) / FEET_PER_METRE, 1)
+        return metres if 3 <= metres <= 40 else None
+
+    m = BOAT_M_PATTERN.search(question)
     if not m:
         return None
     v = float(m.group(1))

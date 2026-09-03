@@ -350,6 +350,25 @@ def check_interface():
         if c:
             problems.append(f"class .{c} is emitted but never styled")
 
+    # The field can be in feet, so every send must convert. A raw read would
+    # put "30" on the wire as thirty metres — a trawler's limit applied to a
+    # nine-metre open boat.
+    for m in re.finditer(r"boat_length_m:\s*([^,\n]+)", js):
+        if "boatMetres" not in m.group(1):
+            problems.append(f"a boat length is sent unconverted: {m.group(1).strip()[:40]}")
+    for line in js.split("\n"):
+        if "$('#boat').value" in line and "UNIT" not in line and "Number" not in line:
+            problems.append("the boat field is read outside the conversion helpers")
+
+    # the last answer is session memory, not a store: a week-old forecast
+    # surviving in a browser would be worse than none at all
+    if re.search(r"\b(localStorage|sessionStorage)\.", js):
+        problems.append("browser storage is used — a stale forecast must not "
+                        "outlive the session")
+    if "LAST = {d, at:" not in js or "if(!showStale())" not in js:
+        problems.append("no last-answer fallback — a boat with no signal gets "
+                        "a blank screen at the moment it matters most")
+
     # voice output was removed on purpose; it must not creep back
     for gone in ("speechSynthesis", "SpeechSynthesisUtterance"):
         if gone in js:
@@ -558,6 +577,39 @@ def check_map():
                         "boat would get a broken page instead of a plain answer")
     if "OpenStreetMap" not in js:
         problems.append("OpenStreetMap attribution missing — its licence requires it")
+
+    # A GPS fix must be answered where it is, not snapped to a harbour. Someone
+    # who put out from a creek 50 km along the coast is 80 km closer to the
+    # boundary than the harbour is, and an answer for the harbour would be
+    # wrong in the direction that matters.
+    if "FIX" not in js or "navigator.geolocation" not in js:
+        problems.append("no way to answer for the user's actual position")
+    if "if(FIX) return [FIX.lat, FIX.lon]" not in js:
+        problems.append("a GPS fix is taken but not used for the question")
+    if "$('#place').value.split" not in js:
+        problems.append("the harbour picker fallback is gone — a phone can "
+                        "refuse, and a signal can be missing at sea")
+
+    # /nearest was never called by any check, so a wrong function name in it
+    # survived a full pass and only surfaced as a 500 in the browser. Call it.
+    from fastapi.testclient import TestClient
+    from app.main import app as _app
+    try:
+        client = TestClient(_app)
+        for la, lo in ((21.76, 88.23), (26.71, 88.43)):
+            r = client.get(f"/nearest?lat={la}&lon={lo}&lang_code=bn")
+            if r.status_code != 200:
+                problems.append(f"/nearest returned {r.status_code} for {la},{lo}")
+                continue
+            body = r.json()
+            for field in ("name", "distance_km", "far", "inland"):
+                if field not in body:
+                    problems.append(f"/nearest is missing {field}")
+        # a fix far inland must say so rather than be answered as a boat
+        if client.get("/nearest?lat=26.71&lon=88.43").json().get("inland") is not True:
+            problems.append("a fix 500 km inland is not flagged as inland")
+    except ImportError:
+        pass          # no test client available; the other checks still ran
 
     report(f"10. the map's contract  ({len(read)} fields read)", problems)
 
