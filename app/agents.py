@@ -80,6 +80,7 @@ class Finding:
     zone_lon: float | None = None
     zone_km: float | None = None
     zone_strength: str = ""
+    legs: list = field(default_factory=list)   # a route, for the map
 
 
 # Stable identifiers for the interface to translate against. The display name
@@ -114,6 +115,7 @@ AGENT_KEYS = {
     "PFZ": "pfz",
     "Geospatial": "geospatial",
     "Trends": "trends",
+    "Route": "route",
     "Risk": "risk",
     "Visualization": "visualization",
     "Reporting": "reporting",
@@ -166,6 +168,7 @@ class Task:
     needs_weather: bool = True
     needs_geofence: bool = False
     needs_pfz: bool = False
+    needs_route: bool = False
     start: datetime = field(default_factory=datetime.now)
     end: datetime = field(default_factory=lambda: datetime.now() + timedelta(hours=12))
     when_key: str = "today"
@@ -175,6 +178,17 @@ class Task:
 BOUNDARY_WORDS = ("সীমা", "সীমানা", "सीमा", "સીમા", "ସୀମା",
                   "எல்லை", "సరిహద్దు", "അതിർത്തി", "boundary", "border")
 # "why is the catch down", "fish has decreased", "কেন কমে গেল"
+# "which way should I go" — a question about getting somewhere.
+ROUTE_WORDS = ("পথ", "রাস্তা", "কোন দিকে", "যাব কীভাবে",
+               "रास्ता", "मार्ग", "किस दिशा",
+               "मार्गा", "कोणत्या दिशेने",
+               "રસ્તો", "કઈ દિશા",
+               "ପଥ", "ରାସ୍ତା", "କେଉଁ ଦିଗ",
+               "பாதை", "வழி", "எந்த திசை",
+               "మార్గం", "దారి", "ఏ దిశ",
+               "വഴി", "പാത", "ഏത് ദിശ",
+               "route", "which way", "safest way", "how do i get")
+
 DECLINE_WORDS = ("কম", "কমে", "কমেছে", "কমল", "কেন",
                  "कम", "क्यों", "घट",
                  "कमी", "का",
@@ -207,7 +221,9 @@ def plan(resolved: Resolved) -> Task:
 
     intent = resolved.intent
     if not intent:
-        if any(w in resolved.question or w in q for w in BOUNDARY_WORDS):
+        if any(w in resolved.question or w in q for w in ROUTE_WORDS):
+            intent = "route"
+        elif any(w in resolved.question or w in q for w in BOUNDARY_WORDS):
             intent = "boundary"
         elif any(w in resolved.question or w in q for w in FISHING_WORDS):
             # "where are the fish" and "why are there fewer fish" both mention
@@ -225,6 +241,14 @@ def plan(resolved: Resolved) -> Task:
         return Task(needs_ocean=False, needs_weather=False, needs_geofence=False,
                     needs_pfz=False, needs_trends=True,
                     start=now, end=now + timedelta(hours=2),
+                    when_key="now", intent=intent)
+
+    if intent == "route":
+        # a route needs somewhere to go, and the zone estimate is what knows
+        # where that is; the weather sets the cost of crossing
+        return Task(needs_ocean=True, needs_weather=True, needs_geofence=False,
+                    needs_pfz=True, needs_route=True,
+                    start=now, end=now + timedelta(hours=6),
                     when_key="now", intent=intent)
 
     if intent == "boundary":
@@ -620,6 +644,63 @@ async def trends_agent(client, lat, lon) -> list[Finding]:
     return out
 
 
+async def route_agent(client, lat, lon, findings, gust_kn: float) -> list[Finding]:
+    """A lower-risk way to wherever the fishing-zone estimate points.
+
+    This runs after the zone estimate rather than beside it, because a route
+    needs a destination and that is what the estimate provides. With nowhere to
+    go there is nothing to route to, and saying so is better than routing to an
+    arbitrary point offshore.
+    """
+    from . import route as route_mod
+
+    zone = next((f for f in findings
+                 if f.agent == "PFZ" and f.zone_lat is not None), None)
+    if not zone:
+        return []
+
+    r = await route_mod.find(client, (lat, lon), (zone.zone_lat, zone.zone_lon),
+                             gust_kn=gust_kn)
+
+    bearing = geofence.bearing_deg((lat, lon), (r.legs[len(r.legs) // 2].lat,
+                                                r.legs[len(r.legs) // 2].lon))
+    straight = r.detour_km < 2.0
+
+    out = [Finding(
+        agent="Route",
+        phrase=(Phrase("route_direct", {"dist": round(r.distance_km),
+                                        "dir": bearing})
+                if straight else
+                Phrase("route_detour", {"dir": bearing,
+                                        "dist": round(r.distance_km),
+                                        "extra": round(r.detour_km)})),
+        legs=[[l.lat, l.lon] for l in r.legs],
+        headline=(f"{r.distance_km} km via {len(r.legs)} legs, "
+                  f"{r.detour_km:+.1f} km against the shortest grid path, "
+                  f"worst wave {r.worst_wave_m} m"),
+        citation=r.citation,
+    )]
+
+    # Said every time, not only when the route bends. Someone who is told to go
+    # a particular way and is not told what that advice cannot see may take it
+    # for more than it is.
+    out.append(Finding(
+        agent="Route",
+        phrase=Phrase("route_limits", {}),
+        headline="no depth, no sandbars, no other vessels",
+        citation=r.citation,
+    ))
+    return out
+
+
+def _route_legs(findings) -> list:
+    """The path the route agent found, for the map to draw."""
+    for f in findings:
+        if f.agent == "Route" and getattr(f, "legs", None):
+            return f.legs
+    return []
+
+
 def geofence_agent(lat, lon, always=False) -> Finding | None:
     g = geofence.check(lat, lon)
     if g.level == "clear" and not always:
@@ -718,6 +799,24 @@ def risk_agent(task: Task, findings: list[Finding], language: str,
     # A fishing question deserves a fishing answer. But safety still outranks
     # it: a good zone in dangerous water is not a recommendation, and blockers
     # are handled below before we ever get here.
+    # A route question gets a route answer. Safety still comes first: there is
+    # no point describing a way across water nobody should be on.
+    if task.intent == "route" and not blockers:
+        way = next((f for f in findings
+                    if f.agent == "Route"
+                    and f.phrase.kind.startswith("route_")
+                    and f.phrase.kind != "route_limits"), None)
+        if way:
+            answer = lang.render(way.phrase, language) + stop
+            limits = next((f for f in findings
+                           if f.phrase.kind == "route_limits"), None)
+            if limits:
+                answer += " " + lang.render(limits.phrase, language) + stop
+            if thunder:
+                answer += " " + lang.render(thunder.phrase, language) + stop
+            return Decision("caution" if thunder else "go", task.when_key,
+                            answer, language, findings)
+
     if task.intent == "fishing" and not blockers:
         best = next((f for f in findings if f.agent == "PFZ"), None)
         if best:
@@ -928,6 +1027,29 @@ async def answer(question: str, session: Session,
     # The boundary goes in the list before the sanctuary, because the answer
     # says them in that order. Evidence that reads back-to-front against the
     # sentence above it makes a reader check which one to believe.
+    if task.needs_route:
+        gust = 0.0
+        for f in findings:
+            if f.phrase.kind == "gust":
+                gust = float(f.phrase.data.get("kn", 0) or 0)
+        try:
+            async with httpx.AsyncClient(
+                    timeout=httpx.Timeout(connect=4.0, read=10.0,
+                                          write=4.0, pool=4.0),
+                    follow_redirects=True) as rc:
+                findings.extend(
+                    await asyncio.wait_for(
+                        route_agent(rc, session.lat, session.lon, findings, gust),
+                        timeout=ANSWER_BUDGET_S))
+            trace.append(Trace("Route", "a lower-risk way across", "ran",
+                               "grid search over waves, currents and boundaries",
+                               0))
+        except Exception as e:
+            trace.append(Trace("Route", "a lower-risk way across", "failed",
+                               type(e).__name__, 0,
+                               parts=[{"w": _failure_word(e)}]))
+            failed.append("Route")
+
     mpa_finding = protected_agent(session.lat, session.lon, language)
 
     g = geofence_agent(session.lat, session.lon, always=task.needs_geofence)
@@ -1004,6 +1126,7 @@ async def answer(question: str, session: Session,
         "boundary_name": fence.boundary,
         "imbl": fence.line or geofence.IMBL_SEGMENT,
         "zones": zones,
+        "route": [[f.zone_lat, f.zone_lon] for f in []] or _route_legs(findings),
     }
 
     # These two were doing their work without appearing: the map is drawn from

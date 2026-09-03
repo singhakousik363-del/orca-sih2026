@@ -589,6 +589,65 @@ def check_decline():
            problems)
 
 
+def check_route():
+    """A route must be a route: shortest when the water is open, longer when
+    it is not, and never through land.
+
+    Two mistakes were made building it, both worth guarding. The A* guide was
+    in kilometres while the cost was weight-times-kilometres, so the search
+    explored in the wrong order and wandered. And every cell was being charged
+    a sanctuary penalty, because the Sundarbans are modelled as a 35 km circle
+    with a 15 km band that shades half the water off Namkhana — when every cell
+    costs the same, no path is better than any other.
+    """
+    import asyncio as _asyncio
+    import httpx as _httpx
+    sys.path.insert(0, ".")
+    from app import route
+
+    problems = []
+    start, goal = (21.76, 88.23), (21.55, 88.70)
+
+    def transport(kind):
+        def handler(request):
+            las = [float(x) for x in request.url.params["latitude"].split(",")]
+            los = [float(x) for x in request.url.params["longitude"].split(",")]
+            out = []
+            for la, lo in zip(las, los):
+                blocked = 21.55 < la < 21.75 and 88.38 < lo < 88.52
+                wave = (None if kind == "land" and blocked
+                        else 3.5 if kind == "rough" and blocked else 0.8)
+                out.append({"hourly": {
+                    "wave_height": [wave],
+                    "ocean_current_velocity": [0.4],
+                    "ocean_current_direction": [90.0]}})
+            return _httpx.Response(200, json=out)
+        return _httpx.MockTransport(handler)
+
+    async def go(kind):
+        async with _httpx.AsyncClient(transport=transport(kind)) as c:
+            return await route.find(c, start, goal, gust_kn=15)
+
+    try:
+        open_water = _asyncio.run(go("open"))
+        if open_water.detour_km > 1.0:
+            problems.append(f"open water is not routed straight "
+                            f"(+{open_water.detour_km} km for nothing)")
+
+        blocked = _asyncio.run(go("land"))
+        if blocked.detour_km <= 1.0:
+            problems.append("land in the way produced no detour")
+
+        rough = _asyncio.run(go("rough"))
+        if rough.worst_wave_m > 2.0:
+            problems.append(f"the route went through {rough.worst_wave_m} m "
+                            f"waves it could have gone round")
+    except Exception as e:
+        problems.append(f"routing raised {type(e).__name__}: {e}")
+
+    report("9c. a route goes round things", problems)
+
+
 # --------------------------------------------------- 10. the map's contract
 def check_map():
     """Every map field the page reads must be one the server sends.

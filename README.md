@@ -47,6 +47,7 @@ app/pfz.py        fishing-zone estimate — SST fronts crossed with chlorophyll
 app/panel_strings.py  agent panel labels, per language
 app/alerts.py     the part that speaks without being asked
 app/protected.py  sanctuaries and seasonal fishing closures
+app/route.py      a lower-risk way across, by grid search
 app/geofence.py   distance to the India–Bangladesh maritime boundary
 app/agents.py     user interaction, discovery, planner, ocean, ocean analytics,
                   weather, geospatial, risk
@@ -375,5 +376,26 @@ Two approximations to declare in the deck:
   individual timeout sits inside the budget, and `verify.py` checks that neither
   slips back.
 
-- Route optimisation is in the architecture diagram,
-  deliberately not in this build.
+- **The route is a direction, not navigation.** There is no depth in it, no
+  sandbar, no wreck, no channel marker, no other vessel. A skipper who followed
+  a line from this instead of his own knowledge of the ground would be worse
+  off, not better — so the answer says that every time, not only when the route
+  bends.
+
+  What it does do is real: a grid between the boat and where it is going, each
+  cell scored on wave height, gusts, current across the track, and how near it
+  passes a boundary or a sanctuary, then the cheapest way across. "Twelve
+  kilometres further to keep out of a steep beam sea" is a decision this data
+  can genuinely inform.
+
+  Land needs no coastline file. The marine model returns nothing over land, so
+  a cell with no wave height is not sea — the model's own opinion about where
+  the water is, arriving free with the wave cost in the same bulk request.
+
+  Two mistakes are worth recording. The A* guide was in kilometres while the
+  cost was weight-times-kilometres, so the search explored in the wrong order
+  and wandered south before turning back. And every cell was being charged a
+  sanctuary penalty, because the Sundarbans are a 35 km circle here with a
+  15 km warning band, which shades half the water off Namkhana; when every cell
+  costs the same, no path is better than any other. Routing now charges for
+  entering a protected area, not for being near one.

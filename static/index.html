@@ -561,6 +561,13 @@ function drawMap(id, d){
     fillColor: '#2E7D8F', fillOpacity: 1
   }).addTo(map);
 
+  // the way across, if one was worked out
+  if(m.route && m.route.length > 1){
+    L.polyline(m.route, {color: '#2E7D8F', weight: 3, opacity: .85})
+      .addTo(map);
+    m.route.forEach(p => shown.push(p));
+  }
+
   // fishing zones, sized by how strong the signal is
   (m.zones || []).forEach(z => {
     const strong = z.strength === 'strong';
