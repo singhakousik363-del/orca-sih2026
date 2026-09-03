@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>ORCA</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&family=Noto+Sans+Tamil:wght@400;500;600&family=Noto+Sans+Telugu:wght@400;500;600&family=Noto+Sans+Malayalam:wght@400;500;600&family=Noto+Sans+Gujarati:wght@400;500;600&family=Noto+Sans+Oriya:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --deep:#12313F; --teal:#2E7D8F; --coral:#C4522A; --ink:#1A2A33;
+  --body:#5C6B75; --mute:#8A9AA3; --line:#D6DEE3; --tint:#EDF3F6;
+  --ok:#146B4F; --okbg:#E3F2EC;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  margin:0;background:#0C222C;font-family:'Noto Sans Bengali','Inter',system-ui,sans-serif;
+  display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;gap:22px;
+}
+.phone{
+  width:100%;max-width:392px;flex:0 0 auto;background:#fff;border-radius:26px;overflow:hidden;
+  box-shadow:0 24px 70px rgba(0,0,0,.45);display:flex;flex-direction:column;
+  height:min(860px,94vh);
+}
+/* agent panel — the pipeline is the product's main claim, so it has to be visible */
+.side{
+  flex:1 1 520px;max-width:620px;height:min(820px,92vh);
+  display:flex;flex-direction:column;color:#CFE3EC;
+}
+.side h2{font-family:Inter,sans-serif;font-size:15px;font-weight:600;letter-spacing:.03em;
+  color:#fff;margin:0 0 4px}
+.side .sub2{font-family:Inter,sans-serif;font-size:12.5px;color:#7C99A8;margin-bottom:16px}
+.pipe{flex:1;overflow-y:auto;padding-right:6px}
+.step{
+  display:grid;grid-template-columns:12px 1fr auto;gap:12px;align-items:start;
+  padding:13px 0;border-bottom:1px solid rgba(255,255,255,.07);
+}
+.dot{width:9px;height:9px;border-radius:50%;margin-top:6px}
+.ran .dot{background:#4FB49B} .skipped .dot{background:#4A6675} .failed .dot{background:#D9714B}
+.step .name{font-family:Inter,sans-serif;font-size:13.5px;font-weight:600;color:#fff}
+.step .role{font-family:Inter,sans-serif;font-size:11.5px;color:#6E8B9A;margin-top:1px}
+.step .det{font-family:Inter,sans-serif;font-size:12.5px;color:#A9C6D4;margin-top:5px}
+.step .ms{font-family:Inter,sans-serif;font-size:11.5px;color:#5E7C8B;white-space:nowrap}
+.skipped .name,.skipped .det{color:#6E8B9A}
+.idle{font-family:Inter,sans-serif;font-size:13px;color:#5E7C8B;padding:30px 0}
+#summary{margin-bottom:14px}
+.sum{
+  display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;
+  font-family:Inter,sans-serif;border:1px solid rgba(255,255,255,.1);
+}
+.sum.go{background:rgba(79,180,155,.14)} .sum.caution{background:rgba(214,160,70,.15)}
+.sum.stay{background:rgba(217,113,75,.16)} .sum.unknown{background:rgba(160,180,190,.14)}
+.sum .v{font-size:15px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.sum.go .v{color:#6FD3B8} .sum.caution .v{color:#E5B972} .sum.stay .v{color:#F09070} .sum.unknown .v{color:#9DBBC9}
+.sum .m{font-size:12.5px;color:#9DBBC9;flex:1}
+.sum .t{font-size:12.5px;color:#7C99A8;white-space:nowrap}
+.miss{color:#E0A06A}
+.step .par{font-size:10.5px;color:#4FB49B;letter-spacing:.04em}
+.step.total{border-bottom:0;margin-top:4px}
+.step.total .name{color:#7C99A8;font-weight:500}
+@media(max-width:900px){ body{flex-direction:column} .side{display:none} }
+header{background:var(--deep);color:#fff;padding:14px 18px 12px;flex:0 0 auto}
+header .t{font-size:17px;font-weight:700;letter-spacing:.02em;font-family:Inter,sans-serif}
+header .s{font-size:13px;color:#8FBACB;margin-top:2px}
+.loc{display:flex;gap:8px;margin-top:12px}
+.loc optgroup{background:#12313F;color:#8FBACB;font-style:normal}
+.loc option{background:#1A3E4E;color:#DCEBF2}
+.loc select,.loc input{
+  flex:1;min-width:0;font-family:inherit;font-size:12px;padding:6px 8px;border-radius:7px;
+  border:1px solid #2A4B5C;background:#1A3E4E;color:#DCEBF2;
+}
+.boatwrap{flex:1;position:relative;min-width:0;display:flex}
+.boatwrap input{width:100%;padding-right:26px}
+.unit{position:absolute;right:9px;top:50%;transform:translateY(-50%);
+  font-family:Inter,sans-serif;font-size:11.5px;color:#7FA9BC;pointer-events:none}
+.boatlabel{font-family:Inter,sans-serif;font-size:10.5px;color:#7FA9BC;
+  text-align:right;margin-top:6px;letter-spacing:.01em;line-height:1.3}
+main{flex:1;overflow-y:auto;padding:16px 18px 8px;overscroll-behavior:contain}
+.hint{font-size:15px;color:var(--body);margin:2px 0 14px}
+.chip{
+  display:block;width:100%;text-align:right;font-family:inherit;font-size:14.5px;
+  background:var(--tint);border:1px solid var(--line);color:var(--ink);
+  padding:12px 15px;border-radius:22px;margin-bottom:9px;cursor:pointer;
+}
+.chip:active{background:#DDE8ED}
+.verdict{border-radius:14px;padding:16px;margin-bottom:14px}
+.verdict.go{background:var(--okbg)} .verdict.caution{background:#FDF3E3}
+.verdict.stay{background:#FBEEE8} .verdict.unknown{background:#EEF1F3}
+.badge{
+  display:inline-block;font-family:Inter,sans-serif;font-size:11px;font-weight:600;
+  letter-spacing:.08em;padding:4px 10px;border-radius:11px;margin-bottom:10px;
+}
+.go .badge{background:#CBE7DB;color:var(--ok)}
+.caution .badge{background:#F6E0BC;color:#8A5A12}
+.stay .badge{background:#F5D6C9;color:#7A2E12}
+.unknown .badge{background:#DFE5E9;color:#4A5A64}
+.answer{font-size:19px;line-height:1.55;color:var(--ink);font-weight:500}
+.because{font-family:Inter,sans-serif;font-size:11px;letter-spacing:.08em;color:var(--mute);margin:18px 0 8px}
+.ev{border-top:1px solid var(--line);padding:11px 0}
+.ev .d{font-size:14.5px;color:var(--ink)}
+.ev .c{font-family:Inter,sans-serif;font-size:11.5px;color:var(--mute);margin-top:3px}
+.ev.block .d{color:var(--coral);font-weight:500}
+footer{padding:10px 20px 16px;border-top:1px solid var(--line);text-align:center;flex:0 0 auto}
+.mic{
+  width:66px;height:66px;border-radius:50%;border:0;background:var(--teal);
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:transform .12s;box-shadow:0 6px 20px rgba(46,125,143,.34);
+}
+.mic:active{transform:scale(.94)}
+.mic.rec{background:var(--coral);animation:pulse 1.1s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(196,82,42,.45)}50%{box-shadow:0 0 0 16px rgba(196,82,42,0)}}
+.mic svg{width:26px;height:26px;fill:#fff}
+.mlabel{font-size:12.5px;color:var(--body);margin-top:7px}
+.you{
+  background:var(--deep);color:#fff;font-size:15px;padding:11px 15px;border-radius:16px 16px 4px 16px;
+  margin:0 0 12px auto;max-width:82%;width:fit-content;
+}
+.anchor{height:0;overflow:hidden}
+.watchrow{display:flex;align-items:center;gap:9px;margin:10px 0 4px}
+.watchbtn{
+  font-family:inherit;font-size:13px;border:1px solid var(--line);background:#fff;
+  color:var(--teal);padding:8px 14px;border-radius:16px;cursor:pointer;
+}
+.watchbtn.on{background:var(--okbg);border-color:#BCDDD0;color:var(--ok)}
+.watchnote{font-size:12px;color:var(--mute);flex:1}
+.alertbox{
+  background:#FBEEE8;border:1px solid #F0C9B6;border-radius:12px;
+  padding:14px 16px;margin:0 0 14px;
+}
+.alertbox .k{
+  font-family:Inter,sans-serif;font-size:11px;font-weight:600;letter-spacing:.07em;
+  color:var(--coral);text-transform:uppercase;margin-bottom:6px;
+}
+.alertbox .m{font-size:17px;line-height:1.5;color:var(--ink);font-weight:500}
+@keyframes arrive{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.alertbox{animation:arrive .35s ease}
+.map{
+  height:230px;border-radius:12px;margin:12px 0 4px;overflow:hidden;
+  border:1px solid var(--line);background:#DCE7EC;
+}
+.mapnote{
+  font-family:Inter,sans-serif;font-size:11px;color:var(--mute);
+  margin:0 0 14px;text-align:right;
+}
+.leaflet-container{font-family:inherit;background:#DCE7EC}
+.zonelabel{
+  font-family:Inter,sans-serif;font-size:11px;font-weight:600;
+  background:#fff;border:1px solid var(--line);border-radius:9px;
+  padding:2px 6px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.12);
+}
+.carried{font-size:12px;color:var(--teal);margin:0 0 8px 2px}
+.follow{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 22px}
+.chip.sm{width:auto;text-align:center;font-size:12.5px;padding:7px 12px;margin:0}
+.err{background:#FBEEE8;color:#7A2E12;padding:12px 14px;border-radius:10px;font-size:14px;margin-bottom:12px}
+.spin{display:flex;gap:5px;justify-content:center;padding:26px 0}
+.spin i{width:8px;height:8px;border-radius:50%;background:var(--teal);animation:b 1.2s infinite}
+.spin i:nth-child(2){animation-delay:.16s} .spin i:nth-child(3){animation-delay:.32s}
+@keyframes b{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-6px)}}
+.working{font-size:13.5px;color:var(--mute);text-align:center}
+</style>
+</head>
+<body>
+<div class="phone">
+  <header>
+    <div class="t">ORCA</div>
+    <div class="s" id="sub"></div>
+    <div class="loc">
+      <select id="lang"></select>
+      <select id="place"></select>
+      <div class="boatwrap">
+        <input id="boat" type="number" value="9" min="4" max="40" step="1">
+        <span class="unit">m</span>
+      </div>
+    </div>
+    <div class="boatlabel" id="boatlabel"></div>
+  </header>
+
+  <div id="alerts"></div>
+  <main id="main"></main>
+
+  <footer>
+    <button class="mic" id="mic">
+      <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M17 11a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z"/></svg>
+    </button>
+    <div class="mlabel" id="mlabel"></div>
+  </footer>
+</div>
+
+<section class="side">
+  <h2 id="panelTitle"></h2>
+  <div class="sub2" id="panelSub"></div>
+  <div id="summary"></div>
+  <div class="pipe" id="pipe"></div>
+</section>
+
+<script>
+const $ = s => document.querySelector(s);
+const main = $('#main');
+
+// Attribute-safe escaping. A quoted question inside an inline onclick silently
+// breaks the attribute and the button stops responding, with no error.
+const esc = t => String(t)
+  .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+  .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+let T = null;                 // interface strings
+let P = null;                 // agent panel strings
+let W = null;                 // words used inside a trace line
+let LANGCODE = 'bn';
+let started = false;
+
+const HOME = '21.76,88.23';   // Namkhana, until GPS or a profile says otherwise
+const SESSION = 'demo-' + Math.random().toString(36).slice(2, 9);
+const SPEECH_TAGS = {bn:'bn-IN', hi:'hi-IN', mr:'mr-IN', gu:'gu-IN', or:'or-IN',
+                     ta:'ta-IN', te:'te-IN', ml:'ml-IN'};
+
+function coords(){ return $('#place').value.split(',').map(Number); }
+
+/* ---------------------------------------------------------------- language */
+
+async function loadLang(code){
+  let d;
+  try{
+    const r = await fetch('/strings?lang_code=' + code);
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    d = await r.json();
+  }catch(err){
+    // Without the language pack the page is an empty shell with no explanation,
+    // which is the worst possible failure for this user.
+    main.innerHTML = `<div class="err">
+        Could not load the app.<br>
+        অ্যাপ চালু হয়নি — সার্ভার চলছে কি না দেখুন।<br>
+        <small>${esc(err.message)}</small>
+      </div>
+      <button class="chip" data-retry="1">Retry / আবার চেষ্টা করুন</button>`;
+    return;
+  }
+
+  T = d.ui; P = d.panel; W = d.words; LANGCODE = d.lang;
+
+  const sel = $('#lang');
+  if(!sel.options.length){
+    d.languages.forEach(l => sel.add(new Option(l.name, l.code)));
+  }
+  sel.value = code;
+
+  buildPorts(d.ports);
+
+  $('#sub').textContent = T.tagline;
+  $('#mlabel').textContent = T.mic;
+  $('#boat').title = T.boat_label;
+  $('#boat').setAttribute('aria-label', T.boat_label);
+  $('#boatlabel').textContent = T.boat_label;
+  $('#panelTitle').textContent = P.title;
+  $('#panelSub').textContent = P.subtitle;
+
+  resetView();
+}
+
+function buildPorts(ports){
+  const sel = $('#place');
+  const keep = sel.value;
+  sel.innerHTML = '';
+  let group = null, lastState = null;
+  ports.forEach(p => {
+    if(p.state !== lastState){
+      group = document.createElement('optgroup');
+      group.label = p.state;
+      sel.appendChild(group);
+      lastState = p.state;
+    }
+    group.appendChild(new Option(p.name, p.lat + ',' + p.lon));
+  });
+  if(keep && [...sel.options].some(o => o.value === keep)) sel.value = keep;
+  else sel.value = HOME;
+}
+
+function resetView(){
+  started = false;
+  main.innerHTML = `<div class="hint">${T.hint}</div>` +
+    T.starters.map(q => `<button class="chip" data-q="${esc(q)}">${q}</button>`).join('');
+  $('#pipe').innerHTML = `<div class="idle">${P.idle}</div>`;
+  $('#summary').innerHTML = '';
+}
+
+/* ------------------------------------------------------------------- asking */
+
+async function ask(q){
+  if(!started){ main.innerHTML = ''; started = true; }
+  main.insertAdjacentHTML('beforeend', `<div class="you">${esc(q)}</div>`);
+  main.insertAdjacentHTML('beforeend',
+    `<div id="wk"><div class="spin"><i></i><i></i><i></i></div>
+     <div class="working">${T.working}</div></div>`);
+  main.scrollTop = main.scrollHeight;
+
+  const [lat, lon] = coords();
+  try{
+    const r = await fetch('/ask', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        question: q, session_id: SESSION, lat, lon,
+        boat_length_m: Number($('#boat').value || 9),
+        prefer_lang: LANGCODE
+      })
+    });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    document.getElementById('wk')?.remove();
+    render(d);
+    $('#boat').value = d.boat_length_m;
+  }catch(err){
+    document.getElementById('wk')?.remove();
+    main.insertAdjacentHTML('beforeend',
+      `<div class="err">${T.failed}<br><small>${esc(err.message)}</small></div>`);
+    main.scrollTop = main.scrollHeight;
+  }
+}
+
+let mapCount = 0;
+
+function render(d){
+  const mapId = ++mapCount;
+  const ev = d.evidence.map(e => `
+    <div class="ev ${e.blocking ? 'block' : ''}">
+      <div class="d">${e.detail}</div>
+      <div class="c">${e.agent} · ${e.citation}</div>
+    </div>`).join('');
+
+  const carried = d.context_carried.length
+    ? `<div class="carried">↳ ${T.carried}: ${d.context_carried.join(', ')}</div>` : '';
+
+  main.insertAdjacentHTML('beforeend', `
+    <div class="anchor"></div>
+    ${carried}
+    <div class="verdict ${d.verdict}">
+      <span class="badge">${T.verdict[d.verdict]}</span>
+      <div class="answer">${d.answer}</div>
+    </div>
+    <div class="map" id="map${mapId}"></div>
+    <div class="mapnote">${T.map_credit}</div>
+    <div class="because">${T.because} · ${d.lang_name}</div>
+    ${ev || `<div class="ev"><div class="d">${T.none}</div></div>`}
+    <div class="watchrow">
+      <button class="watchbtn${WATCHING ? ' on' : ''}" data-watch="1">${T.watch_on}</button>
+      <span class="watchnote">${WATCHING ? T.watch_active : ''}</span>
+    </div>
+    <div class="follow">
+      ${T.follow.map(q => `<button class="chip sm" data-q="${esc(q)}">${q}</button>`).join('')}
+    </div>`);
+
+  // Put the top of this answer at the top of the panel. Scrolling to the bottom
+  // pushes the verdict itself off screen, which is the one thing that must
+  // never be hidden.
+  const anchors = main.querySelectorAll('.anchor');
+  const mark = anchors[anchors.length - 1];
+  main.scrollTop = mark ? mark.offsetTop - 8 : main.scrollHeight;
+
+  drawMap('map' + mapId, d);
+  renderTrace(d.trace, d);
+}
+
+/* ---------------------------------------------------------------- the map */
+
+// Only what this answer is about: the boat, the boundary that matters to it,
+// and any fishing zone worth going to. Drawing all 48 harbours and all three
+// boundaries would fill the screen with things this person cannot use.
+function drawMap(id, d){
+  const el = document.getElementById(id);
+  if(!el) return;
+  if(typeof L === 'undefined'){
+    // Leaflet comes from a CDN, so an offline boat has no map. The answer
+    // above it still stands on its own, which is the point.
+    el.remove();
+    document.querySelector('.mapnote:last-of-type')?.remove();
+    return;
+  }
+
+  const m = d.map || {};
+  const boat = [m.lat, m.lon];
+  const map = L.map(id, {
+    zoomControl: false, attributionControl: true,
+    scrollWheelZoom: false, dragging: true,
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 12, attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  const shown = [boat];
+
+  // The boundary is drawn wherever it is, but it only shapes the view when it
+  // is close enough to matter. Fitting to a line 400 km away zooms out until
+  // the boat and the fishing zones are specks — the two things the person
+  // actually needs to see.
+  const NEAR_KM = 60;
+  if(m.imbl && m.imbl.length){
+    const colour = m.boundary_level === 'urgent' ? '#C4522A'
+                 : m.boundary_level === 'warn'   ? '#D69A46' : '#7FA9BC';
+    L.polyline(m.imbl, {color: colour, weight: 3, dashArray: '7 5'})
+      .bindTooltip(m.boundary_name || '', {sticky: true})
+      .addTo(map);
+    if((m.boundary_km ?? 1e9) <= NEAR_KM) m.imbl.forEach(p => shown.push(p));
+  }
+
+  // the boat
+  L.circleMarker(boat, {
+    radius: 7, color: '#12313F', weight: 2,
+    fillColor: '#2E7D8F', fillOpacity: 1
+  }).addTo(map);
+
+  // fishing zones, sized by how strong the signal is
+  (m.zones || []).forEach(z => {
+    const strong = z.strength === 'strong';
+    L.circleMarker([z.lat, z.lon], {
+      radius: strong ? 10 : 7,
+      color: '#1B7A5A', weight: 2,
+      fillColor: '#4FB49B', fillOpacity: strong ? .85 : .55
+    }).addTo(map);
+    L.marker([z.lat, z.lon], {
+      icon: L.divIcon({className: '', html:
+        `<div class="zonelabel">${Math.round(z.km)} km</div>`,
+        iconSize: [0, 0], iconAnchor: [-8, 8]})
+    }).addTo(map);
+    shown.push([z.lat, z.lon]);
+  });
+
+  map.fitBounds(L.latLngBounds(shown).pad(0.35), {maxZoom: 10});
+  if(map.getZoom() < 6) map.setZoom(6);
+}
+
+/* ------------------------------------------------------------- agent panel */
+
+// A trace line is built from pieces so it can be translated. {"t": ...} is a
+// product name or a number and is printed as it came; {"w": key} is one of our
+// own words; {"n": 3, "w": key} is a count with its noun. Falling back to the
+// English detail means a new agent shows up readable rather than blank.
+function detailText(t){
+  if(!t.parts || !t.parts.length || !W) return t.detail;
+  // An arrow is a connector, not an item, so it must not be fenced off with
+  // separators on both sides.
+  const bits = t.parts.map(p => {
+    const word = p.w ? (W[p.w] || p.w) : '';
+    if(p.n !== undefined) return p.n + ' ' + word;
+    return p.t !== undefined ? String(p.t) : word;
+  });
+  let out = '';
+  bits.forEach((b, i) => {
+    if(i === 0)               out = b;
+    else if(b === '→')        out += ' → ';
+    else if(out.endsWith(' → ')) out += b;
+    else                      out += ' · ' + b;
+  });
+  return out;
+}
+
+function renderTrace(trace, d){
+  const pipe = $('#pipe'), sum = $('#summary');
+  if(!pipe || !trace || !P) return;
+
+  if(sum && d){
+    const total = trace.find(t => t.key === 'total');
+    const blocking = d.evidence.filter(e => e.blocking).length;
+    const missing = (d.missing && d.missing.length)
+      ? ` · <span class="miss">${d.missing.join(', ')} ${P.unavailable}</span>` : '';
+    sum.innerHTML = `
+      <div class="sum ${d.verdict}">
+        <div class="v">${P.verdict[d.verdict]}</div>
+        <div class="m">${d.evidence.length} ${P.findings} · ${blocking} ${P.blocking} · ${d.lang_name}${missing}</div>
+        <div class="t">${total ? total.ms + ' ' + P.ms : ''}</div>
+      </div>`;
+  }
+
+  pipe.innerHTML = trace.map(t => {
+    // Agent names and roles are translated. Source names inside `detail` are
+    // product names and stay as they are, so a citation stays checkable.
+    const label = (P.agents && P.agents[t.key]) || [t.agent, t.role];
+    return `
+    <div class="step ${t.status}${t.key === 'total' ? ' total' : ''}">
+      <div class="dot"></div>
+      <div>
+        <div class="name">${label[0]}</div>
+        <div class="role">${label[1]}</div>
+        <div class="det">${detailText(t)}</div>
+      </div>
+      <div class="ms">${t.ms ? t.ms + ' ' + P.ms : ''}${
+        t.parallel ? `<div class="par">${P.parallel}</div>` : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ------------------------------------------------- alerts, unasked-for */
+
+// The one part of this that speaks without being asked. It polls, because a
+// browser cannot be woken; reaching a phone asleep on a boat needs Firebase or
+// SMS, and SMS is the one that reaches the feature phone that matters here.
+let WATCHING = false;
+let pollTimer = null;
+
+async function setWatch(on){
+  const [lat, lon] = coords();
+  try{
+    const r = await fetch('/watch', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        session_id: SESSION, lat, lon,
+        boat_length_m: Number($('#boat').value || 9),
+        lang: LANGCODE, on
+      })
+    });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    WATCHING = (await r.json()).watching;
+  }catch(err){
+    WATCHING = false;
+  }
+  document.querySelectorAll('[data-watch]').forEach(b => {
+    b.classList.toggle('on', WATCHING);
+    const note = b.parentElement.querySelector('.watchnote');
+    if(note) note.textContent = WATCHING ? T.watch_active : '';
+  });
+  if(WATCHING) startPolling(); else stopPolling();
+}
+
+function startPolling(){
+  if(pollTimer) return;
+  pollTimer = setInterval(pollAlerts, 15000);
+  pollAlerts();
+}
+function stopPolling(){
+  clearInterval(pollTimer);
+  pollTimer = null;
+}
+
+async function pollAlerts(){
+  try{
+    const r = await fetch('/alerts?session_id=' + encodeURIComponent(SESSION));
+    if(!r.ok) return;
+    const d = await r.json();
+    (d.alerts || []).forEach(showAlert);
+  }catch(err){ /* a failed poll is not news; the next one will try */ }
+}
+
+function showAlert(a){
+  const box = $('#alerts');
+  box.insertAdjacentHTML('afterbegin', `
+    <div class="alertbox">
+      <div class="k">${T.alert_title}</div>
+      <div class="m">${a.text}</div>
+    </div>`);
+  box.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+/* ------------------------------------------------------------ voice input */
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const mic = $('#mic'), mlabel = $('#mlabel');
+
+if(SR){
+  const rec = new SR();
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  let listening = false;
+
+  mic.onclick = () => {
+    if(listening){ rec.stop(); return; }
+    rec.lang = SPEECH_TAGS[LANGCODE] || 'bn-IN';
+    try{ rec.start(); }catch(e){}
+  };
+  rec.onstart  = () => { listening = true;  mic.classList.add('rec');    mlabel.textContent = T.listening; };
+  rec.onend    = () => { listening = false; mic.classList.remove('rec'); mlabel.textContent = T.mic; };
+  rec.onerror  = () => { mlabel.textContent = T.mic_fail; };
+  rec.onresult = e => ask(e.results[0][0].transcript);
+}else{
+  mic.onclick = () => { mlabel.textContent = T.no_voice; };
+}
+
+/* ------------------------------------------------------------------- wiring */
+
+document.addEventListener('click', e => {
+  if(e.target.closest('[data-retry]')){ loadLang(LANGCODE || 'bn'); return; }
+  if(e.target.closest('[data-watch]')){ setWatch(!WATCHING); return; }
+  const q = e.target.closest('[data-q]');
+  if(q) ask(q.dataset.q);
+});
+
+$('#lang').addEventListener('change', e => loadLang(e.target.value));
+loadLang('bn');
+</script>
+</body>
+</html>
