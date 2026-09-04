@@ -36,6 +36,10 @@ WIND_LIMIT_KN: dict[BoatClass, float] = {"small": 20.0, "medium": 27.0, "trawler
 # nobody waited for.
 ANSWER_BUDGET_S = 12.0
 
+# The route runs last, on what is left. It is the one agent whose absence
+# costs the least: without it the answer is still an answer.
+ROUTE_BUDGET_S = 5.0
+
 CAPE_THUNDER = 1000.0
 CAPE_SEVERE = 2500.0
 
@@ -1038,12 +1042,22 @@ async def answer(question: str, session: Session,
                                           write=4.0, pool=4.0),
                     follow_redirects=True) as rc:
                 findings.extend(
+                    # A budget of its own, and a small one. The route runs
+                    # after everything else, so whatever it takes is added to
+                    # an answer that is already most of the way to being late.
                     await asyncio.wait_for(
                         route_agent(rc, session.lat, session.lon, findings, gust),
-                        timeout=ANSWER_BUDGET_S))
-            trace.append(Trace("Route", "a lower-risk way across", "ran",
-                               "grid search over waves, currents and boundaries",
-                               0))
+                        timeout=ROUTE_BUDGET_S))
+            # "ran" with nothing to show is a false claim: without a zone
+            # there was nowhere to route to, and the panel should say that
+            # rather than imply a search happened.
+            drew = any(f.agent == "Route" for f in findings)
+            trace.append(Trace("Route", "a lower-risk way across",
+                               "ran" if drew else "skipped",
+                               "grid search over waves, currents and boundaries"
+                               if drew else "no zone to head for",
+                               0,
+                               parts=[] if drew else [{"w": "no_destination"}]))
         except Exception as e:
             trace.append(Trace("Route", "a lower-risk way across", "failed",
                                type(e).__name__, 0,

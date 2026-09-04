@@ -645,6 +645,26 @@ def check_route():
     except Exception as e:
         problems.append(f"routing raised {type(e).__name__}: {e}")
 
+    # The route request competes for the same budget as everything else and
+    # runs last. A grid of 400 points made the whole answer late: the zone
+    # estimate timed out, the route then had nowhere to go, and the user got
+    # neither.
+    from app import agents as _agents
+    if route.MAX_CELLS > 200:
+        problems.append(f"route grid may reach {route.MAX_CELLS} cells — large "
+                        f"enough to make the whole answer late")
+    if getattr(_agents, "ROUTE_BUDGET_S", 999) >= _agents.ANSWER_BUDGET_S:
+        problems.append("the route has no budget of its own, so it can spend "
+                        "what the rest of the answer needs")
+
+    for a, b in (((21.76, 88.23), (21.55, 88.70)),
+                 ((21.76, 88.23), (21.40, 89.10)),
+                 ((9.28, 79.31), (9.10, 79.60))):
+        lats, lons, _ = route._grid_axes(a, b)
+        if len(lats) * len(lons) > route.MAX_CELLS:
+            problems.append(f"a trip produced {len(lats) * len(lons)} cells, "
+                            f"over the {route.MAX_CELLS} cap")
+
     report("9c. a route goes round things", problems)
 
 

@@ -61,7 +61,11 @@ MARGIN_DEG = 0.18
 
 # Above this many cells the request gets large and the answer stops being
 # quick enough to be useful.
-MAX_CELLS = 400
+# 400 points was too many. The route request competes for the same budget as
+# everything else, and a grid that large made the whole answer late — the
+# fishing-zone estimate timed out and the route then had nowhere to go, so the
+# user got neither. Fewer, coarser cells give a direction just as well.
+MAX_CELLS = 180
 
 # What each hazard adds to the cost of crossing a cell. These are weights, not
 # measurements: they say a boundary matters more than a wave, which is a
