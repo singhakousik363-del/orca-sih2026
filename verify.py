@@ -125,6 +125,11 @@ def handler(request):
         return httpx.Response(200, json=MARINE)
     if "api.open-meteo.com" in u:
         return httpx.Response(200, json=WX)
+    if "oauth/token" in u:
+        # IMD hands out a JWT from the portal login; every data call needs one
+        return httpx.Response(200, json={"access_token": "test-jwt",
+                                         "token_type": "Bearer",
+                                         "expires_in": 3600})
     if "seabulletin" in u:
         return httpx.Response(200, json=[{"area": "North West Bay",
                                           "sea": "Moderate", "wind": "20-25 kts"}])
@@ -138,6 +143,8 @@ async def _sources():
     from app import sources
     import app.imd as imd
     imd.IMD.key = "test-key"
+    imd.IMD.email = "test@example.org"
+    imd.IMD.password = "test-pass"
 
     every = [("OpenMeteoOcean", sources.OpenMeteoOcean()),
              ("OpenMeteoOceanography", sources.OpenMeteoOceanography()),
@@ -500,6 +507,17 @@ def check_translation():
                             f"({expr.strip()[:40]}) — use {{'w': key}} so it "
                             "can be translated")
 
+    # English is offered last, after the eight regional languages, and the
+    # whole interface must follow it like any other — a picker that changes
+    # only the microphone is not a language option.
+    from app import ui_strings as _ui, panel_strings as _ps, ports as _pt
+    if "en" not in _ui.UI:
+        problems.append("English is offered but has no interface strings")
+    if _ps.panel("en")["agents"].get("risk", ("",))[0] in ("", None):
+        problems.append("the agent panel has no English")
+    if not _pt.listing("en"):
+        problems.append("harbour names have no English")
+
     report("8. nothing left in English", problems)
 
 
@@ -727,6 +745,27 @@ def check_map():
             problems.append("a fix 500 km inland is not flagged as inland")
     except ImportError:
         pass          # no test client available; the other checks still ran
+
+    # ISRO's daily composite is a rendered JPEG. Sampling its colours back
+    # through the colour bar would yield a number that looks like a
+    # measurement and cannot be checked — JPEG shifts colours, the scale is
+    # logarithmic, and land, cloud and no-data all render as their own
+    # colours. It stays a picture; the numbers stay NOAA's.
+    from app import isro as _isro
+    from datetime import date as _date
+
+    if _isro.url_for(_date(2026, 9, 6)) != (
+            "https://mosdac.gov.in/look/E6_OCM/preview/2026/06SEP/"
+            "E06OCML3CQ_20260906_01km_LAC_chl_v1.0.0.jpg"):
+        problems.append("the MOSDAC path no longer matches the published one")
+
+    isro_src = pathlib.Path("app/isro.py").read_text()
+    for banned in ("getImageData", "canvas", "colour_bar", "sample_pixel"):
+        if banned in isro_src:
+            problems.append(f"isro.py mentions {banned} — the image must not "
+                            f"become a number")
+    if "chl" in js and "getImageData" in js:
+        problems.append("the page samples the ISRO image for values")
 
     report(f"10. the map's contract  ({len(read)} fields read)", problems)
 

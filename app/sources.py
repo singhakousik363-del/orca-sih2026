@@ -239,7 +239,9 @@ class ImdWeather:
         from . import imd
 
         if not imd.IMD.configured:
-            raise RuntimeError("IMD_API_KEY not set — account not approved yet")
+            raise RuntimeError(
+                "IMD needs IMD_API_KEY, IMD_EMAIL and IMD_PASSWORD — "
+                "the key identifies the server, the login gets the JWT")
 
         bulletin = await imd.IMD.sea_bulletin(client, lat, lon)
         if not bulletin:
@@ -286,7 +288,9 @@ class ImdOcean:
         from . import imd
 
         if not imd.IMD.configured:
-            raise RuntimeError("IMD_API_KEY not set — account not approved yet")
+            raise RuntimeError(
+                "IMD needs IMD_API_KEY, IMD_EMAIL and IMD_PASSWORD — "
+                "the key identifies the server, the login gets the JWT")
 
         bulletin = await imd.IMD.sea_bulletin(client, lat, lon)
         if not bulletin:

@@ -29,6 +29,9 @@ import httpx
 
 BASE = "https://api.imd.gov.in/api/v1"
 
+# How long to leave IMD alone after it fails.
+REST_AFTER_FAILURE_S = 120.0
+
 # WMO sea state code -> representative significant wave height in metres.
 # We take the upper end of each band: for a safety call, the pessimistic
 # reading of an ambiguous word is the correct one.
@@ -127,24 +130,88 @@ class ImdClient:
 
     def __init__(self, key: str | None = None):
         self.key = key or os.getenv("IMD_API_KEY")
+        # IMD wants two things at once: the API key, which is bound to a
+        # registered server IP and says which machine is calling, and a JWT,
+        # which says which person is calling. The JWT is fetched with the
+        # portal login and expires in an hour, so it is cached and renewed.
+        self.email = os.getenv("IMD_EMAIL")
+        self.password = os.getenv("IMD_PASSWORD")
+        self._token: str | None = None
+        self._token_expires: float = 0.0
+        # when a failure means we stop asking for a while
+        self._resting_until: float = 0.0
 
     @property
     def configured(self) -> bool:
-        return bool(self.key)
+        return bool(self.key and self.email and self.password)
 
     def _headers(self) -> dict:
         # The portal issues a key after approval; header name to be confirmed
         # against the real account. Kept in one place for that reason.
-        return {"Authorization": f"Bearer {self.key}"} if self.key else {}
+        h = {"X-API-KEY": self.key} if self.key else {}
+        if self._token:
+            h["Authorization"] = f"Bearer {self._token}"
+        return h
+
+    def _rest(self) -> None:
+        """Stop calling IMD for a couple of minutes after it fails.
+
+        Short enough that a service coming back is picked up during a demo,
+        long enough that a service that is down does not tax every answer.
+        """
+        import time
+
+        self._resting_until = time.time() + REST_AFTER_FAILURE_S
+
+    async def _ensure_token(self, client: httpx.AsyncClient) -> bool:
+        """Fetch or renew the JWT. Returns False if we cannot get one.
+
+        Renewed a minute early, because a token that expires between the check
+        and the call is the same as no token at all.
+        """
+        import time
+
+        if self._token and time.time() < self._token_expires - 60:
+            return True
+        if not (self.email and self.password):
+            return False
+        try:
+            r = await client.post(
+                "https://api.imd.gov.in/api/oauth/token.php",
+                json={"email": self.email, "password": self.password},
+                headers={"Content-Type": "application/json"},
+                timeout=httpx.Timeout(connect=4.0, read=8.0, write=4.0, pool=4.0))
+            if r.status_code != 200:
+                return False
+            body = r.json()
+            self._token = body.get("access_token")
+            self._token_expires = time.time() + float(body.get("expires_in", 3600))
+            return bool(self._token)
+        except Exception:
+            return False
 
     async def _get(self, client: httpx.AsyncClient, path: str, **params):
+        # A source that just failed is unlikely to work ten seconds later, and
+        # asking it again costs the whole answer its budget. IMD's upstream
+        # went down while we were building this: every question then waited
+        # for the same timeout before falling back, and 3 seconds became 8.
+        import time
+
+        if time.time() < self._resting_until:
+            return None
+
+        if not await self._ensure_token(client):
+            self._rest()
+            return None
         try:
             r = await client.get(f"{BASE}/{path}", params=params or None,
                                  headers=self._headers())
             if r.status_code != 200:
+                self._rest()
                 return None
             return r.json()
         except Exception:
+            self._rest()
             return None
 
     async def sea_bulletin(self, client, lat: float, lon: float):

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -145,9 +146,15 @@ async def strings(lang_code: str = "bn"):
         "panel": panel_strings.panel(lang_code),
         "words": panel_strings.words(lang_code),
         "ports": ports.listing(lang_code),
+        # English was left out of the picker at first, because the point of
+        # this app is the eight regional languages and an English option
+        # invites people to fall back to it. It is offered now for one
+        # reason: the people evaluating it read English, and a demo they can
+        # read themselves is worth more than one they have to be told about.
+        # It sits last, after the eight.
         "languages": [
             {"code": c, "name": n, "tag": lang.SPEECH_TAG.get(c, "en-IN")}
-            for c, n in lang.LANG_NAMES.items() if c != "en"
+            for c, n in lang.LANG_NAMES.items()
         ],
     }
 
@@ -176,6 +183,54 @@ async def nearest(lat: float, lon: float, lang_code: str = "bn"):
             # 500 km inside the land is not a forecast, it is a number with no
             # meaning, and answering with one would be worse than saying so.
             "inland": away > 120.0}
+
+
+@app.get("/isro")
+async def isro_preview(lang_code: str = "bn"):
+    """Where to find ISRO's own picture of today's coastal water.
+
+    Several days are offered, newest first, because the composite is published
+    a day or two behind and a given day can be missing. The page tries them in
+    order rather than the server spending part of the answer budget on HEAD
+    requests for a picture.
+    """
+    from . import isro
+
+    # The page asks us for the picture rather than MOSDAC directly. Their
+    # server does not serve these images to another site's page, so a browser
+    # that requests the published URL gets nothing and the panel disappears.
+    # Fetching it here costs one request and keeps the source honest: it is
+    # still their image, at their published path.
+    return {"frames": [{"url": f"/isro/image?day={c.day.isoformat()}",
+                        "source": c.url,
+                        "days": c.age_days, "label": c.label}
+                       for c in isro.candidates()]}
+
+
+@app.get("/isro/image")
+async def isro_image(day: str):
+    from datetime import date as _date
+
+    from . import isro
+
+    try:
+        when = _date.fromisoformat(day)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="bad date")
+
+    # only days this module would itself offer, so the endpoint cannot be
+    # turned into a general fetcher for someone else's server
+    if when not in {c.day for c in isro.candidates()}:
+        raise HTTPException(status_code=404, detail="not an offered day")
+
+    async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=4.0, read=12.0, write=4.0, pool=4.0),
+            follow_redirects=True) as client:
+        r = await client.get(isro.url_for(when))
+    if r.status_code != 200:
+        raise HTTPException(status_code=404, detail="not published")
+    return Response(content=r.content, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.post("/reset")

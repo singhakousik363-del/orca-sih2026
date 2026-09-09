@@ -136,6 +136,14 @@ footer{padding:10px 20px 16px;border-top:1px solid var(--line);text-align:center
 }
 .watchbtn.on{background:var(--okbg);border-color:#BCDDD0;color:var(--ok)}
 .watchnote{font-size:12px;color:var(--mute);flex:1}
+.isro{
+  border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  margin:14px 0 4px;background:#0E2733;
+}
+.isro img{display:block;width:100%;height:auto}
+.isro .cap{padding:9px 12px;background:#0E2733}
+.isro .h{font-size:12px;font-weight:600;color:#DCE7EC}
+.isro .s{font-size:10.5px;color:rgba(220,231,236,.7);margin-top:2px}
 .stalebar{
   background:#F4EFE4;border:1px solid #E0D4BC;border-radius:11px;
   padding:10px 13px;margin:0 0 12px;
@@ -266,6 +274,46 @@ function toggleUnit(){
   $('#boat').max = UNIT === 'ft' ? 130 : 40;
   $('#boat').min = UNIT === 'ft' ? 13 : 4;
   setBoatMetres(metres);
+}
+
+// ISRO's own daily picture of the coastal water, under the answer.
+//
+// It is a picture, not a reading. Sampling the colour of a JPEG and calling
+// the result a chlorophyll value would produce a number that looks like a
+// measurement and cannot be checked — so the numbers stay NOAA's, and this
+// is shown beside them with its source named.
+let ISRO = null;
+
+async function loadIsro(){
+  try{
+    const r = await fetch('/isro?lang_code=' + LANGCODE);
+    if(r.ok) ISRO = (await r.json()).frames || null;
+  }catch(err){ ISRO = null; }
+}
+
+function showIsro(){
+  if(!ISRO || !ISRO.length) return;
+  const id = 'isro' + Date.now();
+  main.insertAdjacentHTML('beforeend', `
+    <div class="isro" id="${id}">
+      <img src="${ISRO[0].url}" data-try="0" alt="">
+      <div class="cap">
+        <div class="h">${T.isro_head}</div>
+        <div class="s">${T.isro_sub.replace('{days}', ISRO[0].days)} · ${esc(ISRO[0].label)}</div>
+      </div>
+    </div>`);
+  const box = document.getElementById(id);
+  const img = box.querySelector('img');
+  // A given day can be missing; step back through the older ones, and if none
+  // of them are there, remove the panel rather than leave a broken frame.
+  img.onerror = () => {
+    const n = Number(img.dataset.try) + 1;
+    if(n >= ISRO.length){ box.remove(); return; }
+    img.dataset.try = n;
+    img.src = ISRO[n].url;
+    box.querySelector('.s').textContent =
+      T.isro_sub.replace('{days}', ISRO[n].days) + ' · ' + ISRO[n].label;
+  };
 }
 
 function coords(){
@@ -509,6 +557,7 @@ function render(d){
   main.scrollTop = mark ? mark.offsetTop - 8 : main.scrollHeight;
 
   drawMap('map' + mapId, d);
+  showIsro();
   renderTrace(d.trace, d);
 }
 
@@ -746,6 +795,7 @@ document.addEventListener('click', e => {
 
 $('#lang').addEventListener('change', e => loadLang(e.target.value));
 loadLang('bn');
+loadIsro();
 </script>
 </body>
 </html>

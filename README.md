@@ -365,6 +365,47 @@ Two approximations to declare in the deck:
   what the water did, says in the same breath what it cannot see, and leaves
   the conclusion to the person who knows the ground.
 
+- **IMD wants two credentials, not one.** `X-API-KEY` is bound to a registered
+  server IP and says which machine is calling; a JWT from the portal login says
+  which person is calling. The JWT expires in an hour, so it is fetched on
+  demand and renewed a minute early — a token that expires between the check
+  and the call is the same as no token.
+
+  Set `IMD_API_KEY`, `IMD_EMAIL` and `IMD_PASSWORD`. With any of them missing
+  the source reports which, rather than a flat "not configured", because the
+  three failures look identical from the outside and cost an hour to tell apart.
+
+- **ISRO's picture sits beside our numbers, and is never turned into one.**
+  MOSDAC publishes a daily coastal water-quality composite from Oceansat-3 at
+  a path the date alone can build, so it needs no order, login or key. It is
+  shown under the answer with its source named.
+
+  It would be easy to sample the colours of that JPEG, run them back through
+  the colour bar, and call the result a chlorophyll reading. That number would
+  be wrong and unfalsifiable: JPEG compression shifts colours, the scale is
+  logarithmic and unlabelled between ticks, and land, cloud and no-data each
+  render as a colour a naive sampler would read as a value. It would look
+  exactly like a measurement to the person relying on it.
+
+  So the numbers stay NOAA's, which publishes actual values with actual units,
+  and the picture stays ISRO's. The claim the deck makes is precisely that.
+
+- **A source that just failed is left alone for two minutes.** IMD's upstream
+  went down while this was being built. Every question then waited for the same
+  timeout before falling back, and an answer that took 3 seconds took 8 — the
+  fallback worked, but the cost of finding out was charged to every user.
+
+  Two minutes is short enough that a service coming back is picked up during a
+  demo, and long enough that a service that is down stops taxing every answer.
+
+- **A source that just failed is left alone for two minutes.** IMD's upstream
+  went down while this was being built. Every question then waited for the same
+  timeout before falling back, and an answer that took 3 seconds took 8 — the
+  fallback worked, but the cost of finding out was charged to every user.
+
+  Two minutes is short enough that a service coming back is picked up during a
+  demo, and long enough that a service that is down stops taxing every answer.
+
 - **Twelve seconds is the whole budget for an answer.** Not per call — for the
   round. Past that a partial answer that names what is missing beats a complete
   one nobody waited for, and the risk agent already refuses to say "safe" on
