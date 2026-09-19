@@ -1139,6 +1139,25 @@ async def answer(question: str, session: Session,
     # Attached here, not at each of the ten return sites in risk_agent:
     # the series describes the window, not the verdict chosen from it.
     decision.series = dict(LAST_SERIES)
+
+    # Visualization and Reporting are named here but are not separate passes
+    # over the data. Every Finding already carries its own map geometry and
+    # its own citation, so what is counted below is what the agents that own
+    # each fact produced — not a rendering step bolted on afterwards.
+    layers = sum(1 for f in findings if f.zone_lat is not None)
+    legs = sum(len(f.legs) for f in findings)
+    if fence_now:
+        layers += 1                      # the boundary line the map draws
+    trace.append(Trace("Visualization", "what the map draws", "ran",
+                       f"{layers} map layers · {legs} route legs",
+                       parts=[{"n": layers, "w": "layers"},
+                              {"n": legs, "w": "legs"}]))
+
+    sources = {f.citation for f in findings if f.citation}
+    trace.append(Trace("Reporting", "evidence behind the answer", "ran",
+                       f"{len(findings)} findings · {len(sources)} sources",
+                       parts=[{"n": len(findings), "w": "findings"},
+                              {"n": len(sources), "w": "sources"}]))
     decision = _with_caveat(decision, failed, language)
 
     # A "do not go" headline with "good fishing 37 km east" listed underneath is
