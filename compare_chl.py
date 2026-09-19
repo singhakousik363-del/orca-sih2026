@@ -53,7 +53,7 @@ def stats(vals):
     return median, sum(s) / len(s), min(s), max(s), len(s)
 
 
-print(f"Position 21.0N 88.5E  ·  {DATE}  ·  ±{BOX}° box\n")
+print(f"Position {LAT}N {LON}E  ·  {DATE}  ·  ±{BOX}° box\n")
 
 pt, iv = isro()
 med, mean, lo, hi, n = stats(iv)
