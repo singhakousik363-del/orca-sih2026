@@ -767,6 +767,8 @@ def risk_agent(task: Task, findings: list[Finding], language: str,
     mpa = next((f for f in findings
                 if f.agent == "Geospatial"
                 and f.phrase.kind.startswith("mpa")), None)
+    storm = next((f for f in findings
+                  if f.phrase.kind == "imd_storm"), None)
 
     # A boundary question gets a boundary answer, not a sailing verdict.
     if task.intent == "boundary" and fence:
@@ -781,6 +783,13 @@ def risk_agent(task: Task, findings: list[Finding], language: str,
                 verdict = "stay"
             elif verdict == "go":
                 verdict = "caution"
+        # Someone who asks only about the border will act on the answer and
+        # go. Sending them a distance with a storm warning withheld is the
+        # one failure this tool cannot afford, so the warning is appended
+        # rather than replacing what they asked for.
+        if storm:
+            answer += " " + lang.render(storm.phrase, language) + stop
+            verdict = "stay"
         return Decision(
             verdict=verdict,
             when_key="now",
@@ -798,8 +807,6 @@ def risk_agent(task: Task, findings: list[Finding], language: str,
     # the agency that owns this sea, about a period rather than an hour, and
     # a calm reading inside a warned period is still inside a warned period.
     # So no model output may outrank it.
-    storm = next((f for f in findings
-                  if f.phrase.kind == "imd_storm"), None)
     if storm:
         return Decision("stay", task.when_key,
                         lang.render(storm.phrase, language) + stop,
