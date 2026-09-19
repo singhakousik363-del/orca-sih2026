@@ -30,8 +30,11 @@ class Turn:
 
 @dataclass
 class Session:
-    lat: float = 21.55
-    lon: float = 88.15
+    # No default position. A harbour assumed here reaches the user as a
+    # confident verdict about water they never named, and nothing in the
+    # answer would tell them it was guessed.
+    lat: float | None = None
+    lon: float | None = None
     boat_length_m: float = 9.0
     lang: str = "bn"
     turns: list[Turn] = field(default_factory=list)

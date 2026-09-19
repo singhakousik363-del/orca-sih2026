@@ -1,0 +1,122 @@
+--- login: HTTP 200 ---
+{
+  "access_token": "eyJ1aWQiOjM2MzgsImV4cCI6MTc4OTgwMzgzMX0.ec2c07c3b17876768f94a20a65546ba75493c04eed1e9bef02672b6823133beb",
+  "token_type": "Bearer",
+  "expires_in": 3600
+}
+
+>>> token ok, expires_in = 3600
+
+--- GET https://api.imd.gov.in/api/v1/seabulletin  params=None ---
+HTTP 200
+content-type: application/json 
+
+=== FULL RESPONSE (first 6000 chars) ===
+[
+  {
+    "Id": "109",
+    "Date of Observation": "2026-09-18",
+    "Layer": "South West Bay ",
+    "Issued by": "ACWC KOLKATA",
+    "Valid From": "2026-09-18 21:00:00",
+    "Validity": "12",
+    "TTT Warning": "No Storm Warning",
+    "Wind": "Mainly Westerly, 15 - 20 kts gusting 25 kts",
+    "Synoptic Situation": "Southwest Monsoon Moderate to Strong over South Andaman Sea; Moderate over South Bay of Bengal and North Andaman Sea;  Weak to Moderate over Northeast , East central Bay of Bengal; Weak over Northwest and West central Bay of Bengal. \r\n",
+    "Weather": "Fairly widespread rain or thundershowers",
+    "Visibility": "Moderate becoming Poor in rain/thunder shower",
+    "Sea Condition": "Slight to Moderate occasionally Rough",
+    "Part 4": "https://rsmcnewdelhi.imd.gov.in/uploads/charts/mor_Sur.jpg",
+    "Part 5": "NIL",
+    "Part 6": "01900 99942 806 32596 50000 10278, 807 21595 70000 10274, 811 21594 40000 10272, 895 21595 50000 10274, 901 32596 30000 10274, 976 21495 80000 10274, 99943 049 31595 63203 10270, 053 21595 60000 10278, 105 22596 82901 10268, 150 31596 70000 10274, 185 32596 43202 10278, 245 32596 20000 10298, 279 31596 72703 10274, 346 31596 80000 10288, ",
+    "Update Time": "2026-09-19 06:30:01"
+  },
+  {
+    "Id": "110",
+    "Date of Observation": "2026-09-18",
+    "Layer": "South East Bay ",
+    "Issued by": "ACWC KOLKATA",
+    "Valid From": "2026-09-18 21:00:00",
+    "Validity": "12",
+    "TTT Warning": "No Storm Warning",
+    "Wind": "Mainly Westerly, 15 - 20 kts gusting 25 kts",
+    "Synoptic Situation": "Southwest Monsoon Moderate to Strong over South Andaman Sea; Moderate over South Bay of Bengal and North Andaman Sea;  Weak to Moderate over Northeast , East central Bay of Bengal; Weak over Northwest and West central Bay of Bengal. \r\n",
+    "Weather": "Fairly widespread rain or thundershowers with isolated heavy rain",
+    "Visibility": "Moderate becoming Poor in heavy rain/thundershower",
+    "Sea Condition": "Slight to Moderate occasionally Rough",
+    "Part 4": "https://rsmcnewdelhi.imd.gov.in/uploads/charts/mor_Sur.jpg",
+    "Part 5": "NIL",
+    "Part 6": "01900 99942 806 32596 50000 10278, 807 21595 70000 10274, 811 21594 40000 10272, 895 21595 50000 10274, 901 32596 30000 10274, 976 21495 80000 10274, 99943 049 31595 63203 10270, 053 21595 60000 10278, 105 22596 82901 10268, 150 31596 70000 10274, 185 32596 43202 10278, 245 32596 20000 10298, 279 31596 72703 10274, 346 31596 80000 10288, ",
+    "Update Time": "2026-09-19 06:30:01"
+  },
+  {
+    "Id": "111",
+    "Date of Observation": "2026-09-18",
+    "Layer": "West Central Bay ",
+    "Issued by": "ACWC KOLKATA",
+    "Valid From": "2026-09-18 21:00:00",
+    "Validity": "12",
+    "TTT Warning": "No Storm Warning",
+    "Wind": "Variable, 5 - 10 kts",
+    "Synoptic Situation": "Southwest Monsoon Moderate to Strong over South Andaman Sea; Moderate over South Bay of Bengal and North Andaman Sea;  Weak to Moderate over Northeast , East central Bay of Bengal; Weak over Northwest and West central Bay of Bengal. \r\n",
+    "Weather": "Scattered rain or thundershowers",
+    "Visibility": "Good becoming Moderate in rain/thundershower",
+    "Sea Condition": "Smooth",
+    "Part 4": "https://rsmcnewdelhi.imd.gov.in/uploads/charts/mor_Sur.jpg",
+    "Part 5": "NIL",
+    "Part 6": "01900 99942 806 32596 50000 10278, 807 21595 70000 10274, 811 21594 40000 10272, 895 21595 50000 10274, 901 32596 30000 10274, 976 21495 80000 10274, 99943 049 31595 63203 10270, 053 21595 60000 10278, 105 22596 82901 10268, 150 31596 70000 10274, 185 32596 43202 10278, 245 32596 20000 10298, 279 31596 72703 10274, 346 31596 80000 10288, ",
+    "Update Time": "2026-09-19 06:30:01"
+  },
+  {
+    "Id": "112",
+    "Date of Observation": "2026-09-18",
+    "Layer": "East Central Bay ",
+    "Issued by": "ACWC KOLKATA",
+    "Valid From": "2026-09-18 21:00:00",
+    "Validity": "12",
+    "TTT Warning": "No Storm Warning",
+    "Wind": "Northeast to Easterly, 10 - 15 kts",
+    "Synoptic Situation": "Southwest Monsoon Moderate to Strong over South Andaman Sea; Moderate over South Bay of Bengal and North Andaman Sea;  Weak to Moderate over Northeast , East central Bay of Bengal; Weak over Northwest and West central Bay of Bengal. \r\n",
+    "Weather": "Scattered rain or thundershowers",
+    "Visibility": "Good becoming Moderate in rain/thundershower",
+    "Sea Condition": "Smooth to Slight",
+    "Part 4": "https://rsmcnewdelhi.imd.gov.in/uploads/charts/mor_Sur.jpg",
+    "Part 5": "NIL",
+    "Part 6": "01900 99942 806 32596 50000 10278, 807 21595 70000 10274, 811 21594 40000 10272, 895 21595 50000 10274, 901 32596 30000 10274, 976 21495 80000 10274, 99943 049 31595 63203 10270, 053 21595 60000 10278, 105 22596 82901 10268, 150 31596 70000 10274, 185 32596 43202 10278, 245 32596 20000 10298, 279 31596 72703 10274, 346 31596 80000 10288, ",
+    "Update Time": "2026-09-19 06:30:01"
+  },
+  {
+    "Id": "113",
+    "Date of Observation": "2026-09-18",
+    "Layer": "North West Bay ",
+    "Issued by": "ACWC KOLKATA",
+    "Valid From": "2026-09-18 21:00:00",
+    "Validity": "12",
+    "TTT Warning": "No Storm Warning",
+    "Wind": "East to Southeasterly, 5 - 10 kts",
+    "Synoptic Situation": "Southwest Monsoon Moderate to Strong over South Andaman Sea; Moderate over South Bay of Bengal and North Andaman Sea;  Weak to Moderate over Northeast , East central Bay of Bengal; Weak over Northwest and West central Bay of Bengal. \r\n",
+    "Weather": "Isolated rain or thundershowers",
+    "Visibility": "Good becoming Moderate in rain/thundershower",
+    "Sea Condition": "Smooth",
+    "Part 4": "https://rsmcnewdelhi.imd.gov.in/uploads/charts/mor_Sur.jpg",
+    "Part 5": "NIL",
+    "Part 6": "01900 99942 806 32596 50000 10278, 807 21595 70000 10274, 811 21594 40000 10272, 895 21595 50000 10274, 901 32596 30000 10274, 976 21495 80000 10274, 99943 049 31595 63203 10270, 053 21595 60000 10278, 105 22596 82901 10268, 150 31596 70000 10274, 185 32596 43202 10278, 245 32596 20000
+
+=== KEY MAP — diff this against imd.py ===
+[16 items]
+  Id: str = '109'
+  Date of Observation: str = '2026-09-18'
+  Layer: str = 'South West Bay '
+  Issued by: str = 'ACWC KOLKATA'
+  Valid From: str = '2026-09-18 21:00:00'
+  Validity: str = '12'
+  TTT Warning: str = 'No Storm Warning'
+  Wind: str = 'Mainly Westerly, 15 - 20 kts gusting 25 kts'
+  Synoptic Situation: str = 'Southwest Monsoon Moderate to Strong over South Andaman Sea; Moderate
+  Weather: str = 'Fairly widespread rain or thundershowers'
+  Visibility: str = 'Moderate becoming Poor in rain/thunder shower'
+  Sea Condition: str = 'Slight to Moderate occasionally Rough'
+  Part 4: str = 'https://rsmcnewdelhi.imd.gov.in/uploads/charts/mor_Sur.jpg'
+  Part 5: str = 'NIL'
+  Part 6: str = '01900 99942 806 32596 50000 10278, 807 21595 70000 10274, 811 21594 4
+  Update Time: str = '2026-09-19 06:30:01'

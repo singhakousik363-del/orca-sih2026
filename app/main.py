@@ -97,6 +97,19 @@ async def ask(body: Ask):
     if body.lat is not None and body.lon is not None:
         s.lat, s.lon = body.lat, body.lon
 
+    if s.lat is None or s.lon is None:
+        return {
+            "verdict": "unknown",
+            "answer": lang.NEED_PLACE.get(body.prefer_lang or "bn",
+                                          lang.NEED_PLACE["en"]),
+            "lang": body.prefer_lang or "bn",
+            "lang_name": lang.LANG_NAMES.get(body.prefer_lang or "bn", ""),
+            "speech_tag": lang.SPEECH_TAG.get(body.prefer_lang or "bn", "bn-IN"),
+            "context_carried": [], "boat_length_m": s.boat_length_m,
+            "turn": len(s.turns), "evidence": [], "missing": [],
+            "map": {}, "series": {}, "trace": [], "place": None,
+        }
+
     try:
         d = await agents.answer(body.question, s, body.boat_length_m,
                                 body.prefer_lang)
@@ -125,6 +138,12 @@ async def ask(body: Ask):
         ],
         "missing": d.missing,
         "map": d.map,
+        "series": d.series,
+        # The position decides the sea area, the fishing zone and the
+        # boundary. It is the one input nobody typed, so the answer has to
+        # name the place it is about rather than let it be assumed.
+        "place": (ports.nearest(s.lat, s.lon).name(d.lang)
+                  if s.lat is not None and s.lon is not None else None),
         "trace": [
             {"agent": t.agent, "key": t.key, "role": t.role,
              "status": t.status, "detail": t.detail, "ms": t.ms,

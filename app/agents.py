@@ -160,6 +160,14 @@ class Decision:
     context_carried: list[str] = field(default_factory=list)
     trace: list[Trace] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
+    # The hours behind the verdict. A single worst value answers "can I go";
+    # the series answers "when", which is the question that follows it.
+    series: dict = field(default_factory=dict)
+
+
+# The weather agent fills this; answer() drains it into the Decision. Set
+# per request, read once, so nothing downstream sees a stale window.
+LAST_SERIES: dict = {}
 
 
 # ------------------------------------------------------------------ planner
@@ -336,6 +344,21 @@ async def weather_agent(client, lat, lon, task, boat) -> list[Finding]:
     window = [h for h in reading.hours if task.start <= h.at <= task.end]
     if not window:
         return []
+
+    # A bulletin describes a period in words and is held flat across the
+    # window; drawing that as a line would imply hourly detail nobody has.
+    flat = len({h.gust_kn for h in window if h.gust_kn is not None}) <= 1
+    LAST_SERIES.clear()
+    LAST_SERIES.update({
+        "flat": flat,
+        "source": reading.source if hasattr(reading, "source") else "",
+        "hours": [
+            {"at": h.at.isoformat(),
+             "gust_kn": h.gust_kn,
+             "limit_kn": WIND_LIMIT_KN[boat]}
+            for h in window
+        ],
+    })
 
     out: list[Finding] = []
 
@@ -1113,6 +1136,9 @@ async def answer(question: str, session: Session,
 
     t3 = time.perf_counter()
     decision = risk_agent(task, findings, language, missing=failed)
+    # Attached here, not at each of the ten return sites in risk_agent:
+    # the series describes the window, not the verdict chosen from it.
+    decision.series = dict(LAST_SERIES)
     decision = _with_caveat(decision, failed, language)
 
     # A "do not go" headline with "good fishing 37 km east" listed underneath is

@@ -187,6 +187,14 @@ footer{padding:10px 20px 16px;border-top:1px solid var(--line);text-align:center
 .spin i:nth-child(2){animation-delay:.16s} .spin i:nth-child(3){animation-delay:.32s}
 @keyframes b{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-6px)}}
 .working{font-size:13.5px;color:var(--mute);text-align:center}
+.chart{margin:6px 0 2px}
+.wc{width:100%;height:96px;display:block}
+.gl{fill:none;stroke:#2f7d5a;stroke-width:2;vector-effect:non-scaling-stroke}
+.gl.hot{stroke:#b4472e}
+.lim{stroke:#b4472e;stroke-width:1;stroke-dasharray:4 4;opacity:.55;vector-effect:non-scaling-stroke}
+.ct{font-size:9px;fill:#7c7a72}
+.cnote{font-size:11px;color:#7c7a72;margin-top:2px}
+.place{font-size:12px;color:#7c7a72;margin-top:4px}
 </style>
 </head>
 <body>
@@ -243,7 +251,10 @@ let W = null;                 // words used inside a trace line
 let LANGCODE = 'bn';
 let started = false;
 
-const HOME = '21.76,88.23';   // Namkhana, until GPS or a profile says otherwise
+// No default harbour. Position decides the sea area, the fishing zone and
+// the boundary, so a preselected one is an answer about water the user
+// never named — and they have no reason to doubt it.
+const HOME = '';
 const SESSION = 'demo-' + Math.random().toString(36).slice(2, 9);
 const SPEECH_TAGS = {bn:'bn-IN', hi:'hi-IN', mr:'mr-IN', gu:'gu-IN', or:'or-IN',
                      ta:'ta-IN', te:'te-IN', ml:'ml-IN'};
@@ -434,8 +445,9 @@ function buildPorts(ports){
     }
     group.appendChild(new Option(p.name, p.lat + ',' + p.lon));
   });
+  sel.insertBefore(new Option(T.pick_place || 'জায়গা বাছুন', ''), sel.firstChild);
   if(keep && [...sel.options].some(o => o.value === keep)) sel.value = keep;
-  else sel.value = HOME;
+  else sel.value = '';
 }
 
 function resetView(){
@@ -536,9 +548,11 @@ function render(d){
     <div class="verdict ${d.verdict}">
       <span class="badge">${T.verdict[d.verdict]}</span>
       <div class="answer">${d.answer}</div>
+      ${d.place ? `<div class="place">${d.place}</div>` : ``}
     </div>
-    <div class="map" id="map${mapId}"></div>
-    <div class="mapnote">${T.map_credit}</div>
+    ${d.place ? `<div class="map" id="map${mapId}"></div>
+    <div class="mapnote">${T.map_credit}</div>` : ``}
+    ${windChart(d.series)}
     <div class="because">${T.because} · ${d.lang_name}</div>
     ${ev || `<div class="ev"><div class="d">${T.none}</div></div>`}
     <div class="watchrow">
@@ -561,7 +575,51 @@ function render(d){
   renderTrace(d.trace, d);
 }
 
+/* -------------------------------------------------------------- the hours */
+
+// A verdict answers "can I go". The series answers "when", which is the
+// question a fisherman asks next. Drawn by hand in SVG: a chart library
+// would be another file to fetch on a connection that is already the
+// weakest part of this system.
+function windChart(s){
+  if(!s || !s.hours || s.hours.length < 4) return '';
+  if(s.flat) return '';          // a bulletin held flat is not an hourly series
+
+  const pts = s.hours.filter(h => h.gust_kn != null);
+  if(pts.length < 4) return '';
+
+  const W = 320, H = 96, PAD = 18;
+  const limit = pts[0].limit_kn || 0;
+  const vals = pts.map(p => p.gust_kn);
+  const top = Math.max(limit * 1.15, ...vals) || 1;
+
+  const x = i => PAD + i * (W - PAD * 2) / (pts.length - 1);
+  const y = v => H - PAD - (v / top) * (H - PAD * 2);
+
+  const line = pts.map((p, i) => `${x(i).toFixed(1)},${y(p.gust_kn).toFixed(1)}`).join(' ');
+  const over = pts.some(p => p.gust_kn > limit);
+
+  // Hour labels every six hours, so the axis stays readable on a phone.
+  const ticks = pts.map((p, i) => {
+    const hr = new Date(p.at).getHours();
+    if(i === 0 || hr % 6 !== 0) return '';
+    return `<text x="${x(i).toFixed(1)}" y="${H - 4}" class="ct">${hr}:00</text>`;
+  }).join('');
+
+  return `
+    <div class="chart">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="wc">
+        <line x1="${PAD}" y1="${y(limit).toFixed(1)}" x2="${W - PAD}"
+              y2="${y(limit).toFixed(1)}" class="lim"/>
+        <polyline points="${line}" class="gl ${over ? 'hot' : ''}"/>
+        ${ticks}
+      </svg>
+      <div class="cnote">${T.chart_note || ''} ${limit.toFixed(0)} kn</div>
+    </div>`;
+}
+
 /* ---------------------------------------------------------------- the map */
+
 
 // Only what this answer is about: the boat, the boundary that matters to it,
 // and any fishing zone worth going to. Drawing all 48 harbours and all three
