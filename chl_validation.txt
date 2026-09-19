@@ -1,0 +1,8 @@
+Position 21.0N 88.5E  ·  2026-03-29  ·  ±0.5° box
+
+Oceansat-3 OCM L4 (MOSDAC, 25 km)
+  nearest point : 0.076
+  median        : 0.076   mean 0.075   range 0.069-0.078   n=20
+
+NOAA VIIRS DINEOF (4 km)
+  median        : 0.204   mean 0.201   range 0.185-0.211   n=49
