@@ -221,10 +221,14 @@ class ImdClient:
         area = nearest_sea_area(lat, lon)
         rows = data if isinstance(data, list) else data.get("data", [])
         for row in rows:
-            name = str(row.get("area") or row.get("Area") or "")
+            name = str(row.get("Layer") or row.get("area") or row.get("Area") or "")
             if area.name.lower() in name.lower():
                 return {"area": name, "row": row}
-        return {"area": area.name, "row": rows[0]} if rows else None
+        # No fallback. rows[0] is South West Bay regardless of where the
+        # boat is, and a bulletin for the wrong sea is worse than none:
+        # the citation would name IMD while the numbers describe
+        # another ocean. Let the chain fall through to the next source.
+        return None
 
     async def district_nowcast(self, client, district_id: str | None = None):
         return await self._get(client, "districtnowcast",

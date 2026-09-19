@@ -298,7 +298,7 @@ class ImdOcean:
 
         row = bulletin["row"]
         wave_m = imd.sea_state_to_m(
-            row.get("sea") or row.get("Sea") or row.get("sea_condition"))
+            row.get("Sea Condition") or row.get("sea") or row.get("Sea"))
         if wave_m is None:
             raise RuntimeError("sea state not recognised in bulletin")
 
