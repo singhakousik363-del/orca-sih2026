@@ -387,6 +387,20 @@ async def weather_agent(client, lat, lon, task, boat) -> list[Finding]:
             fell_back=skipped,
         ))
 
+    storm = next((h for h in window
+                  if getattr(h, "storm_warning", None)), None)
+    if storm:
+        out.append(Finding(
+            agent="Weather",
+            # The sentence is fixed; the bulletin's own wording goes in the
+            # headline, where it is read as evidence rather than translated.
+            phrase=Phrase("imd_storm", {}),
+            headline=f"IMD storm warning in force: {storm.storm_warning}",
+            citation=reading.cite(window[0].at),
+            blocking=True,
+            fell_back=skipped,
+        ))
+
     return out
 
 
@@ -778,6 +792,17 @@ def risk_agent(task: Task, findings: list[Finding], language: str,
     # Boundary proximity outranks weather — an arrest is not a weather risk.
     if fence and fence.blocking:
         return Decision("stay", "now", lang.render(fence.phrase, language) + stop,
+                        language, findings)
+
+    # A storm warning is not a threshold crossing. It is a judgement made by
+    # the agency that owns this sea, about a period rather than an hour, and
+    # a calm reading inside a warned period is still inside a warned period.
+    # So no model output may outrank it.
+    storm = next((f for f in findings
+                  if f.phrase.kind == "imd_storm"), None)
+    if storm:
+        return Decision("stay", task.when_key,
+                        lang.render(storm.phrase, language) + stop,
                         language, findings)
 
     # No data is not the same as no danger. Never fall through to "go".

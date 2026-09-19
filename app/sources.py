@@ -61,6 +61,9 @@ class WeatherHour:
     # A falling barometer is what separates an afternoon squall from a system
     # moving in. It is the one signal a fisherman has always read himself.
     pressure_msl: float | None = None
+    # IMD's own call, not a threshold we crossed. Free text, because the
+    # bulletin says 'Cyclone Warning' or 'Gale Warning', not a number.
+    storm_warning: str | None = None
 
 
 @dataclass(frozen=True)
@@ -250,6 +253,10 @@ class ImdWeather:
         row = bulletin["row"]
         gust = imd.parse_knots(
             row.get("wind") or row.get("Wind") or row.get("wind_speed"))
+        # Anything that is not an explicit all-clear is treated as a warning.
+        # An unrecognised phrase from IMD must fail towards caution.
+        ttt = str(row.get("TTT Warning") or "").strip()
+        storm = ttt if ttt and "no storm warning" not in ttt.lower() else None
         now = datetime.now().replace(minute=0, second=0, microsecond=0)
 
         nowcast = await imd.IMD.district_nowcast(client)
@@ -268,7 +275,7 @@ class ImdWeather:
         hours = [
             WeatherHour(at=now + timedelta(hours=i), wind_kn=gust, gust_kn=gust,
                         wind_dir_deg=None, precip_mm=None, cape=cape,
-                        visibility_m=None)
+                        visibility_m=None, storm_warning=storm)
             for i in range(days * 24)
         ]
         return Reading(hours, f"{self.name} — {bulletin['area']}", datetime.now())
