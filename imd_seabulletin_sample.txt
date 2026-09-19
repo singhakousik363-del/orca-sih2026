@@ -1,6 +1,6 @@
 --- login: HTTP 200 ---
 {
-  "access_token": "eyJ1aWQiOjM2MzgsImV4cCI6MTc4OTgwMzgzMX0.ec2c07c3b17876768f94a20a65546ba75493c04eed1e9bef02672b6823133beb",
+  "access_token": "<redacted>",
   "token_type": "Bearer",
   "expires_in": 3600
 }
